@@ -1,2 +1,66 @@
 # CloneProject
 Utility to clone a project via CLI or Tkinter GUI.
+
+CloneProject takes an existing codebase and produces a fully renamed copy. You provide the source directory/name and the destination directory/name either via command-line arguments or through the Tkinter GUI. The script copies every file and folder, renaming paths that contain the original project name and replacing occurrences of that name inside text files. This makes it easy to bootstrap a new project from a template without manually updating identifiers.
+
+## Features
+
+*   **Dual Interface:** Operates via a command-line interface (CLI) for scripting or a user-friendly Tkinter graphical user interface (GUI).
+*   **Comprehensive Renaming:** Replaces the specified source name in:
+    *   Directory names
+    *   File names
+    *   Contents of text files
+*   **Binary File Handling:** Automatically skips binary files during content replacement to prevent corruption.
+*   **Destination Overwrite:** Provides a warning (GUI) or proceeds with overwriting (CLI) if the destination directory already exists.
+
+## Usage
+
+### GUI Mode
+
+Run the script without any arguments to launch the graphical interface:
+
+```bash
+python clone_project.py
+```
+
+![GUI Screenshot](docs/images/figure_01.png)
+
+The GUI will allow you to:
+*   Browse and select the **Source Directory** (the project you want to clone).
+*   Browse and select the **Destination Directory** (where the new, cloned project will be created).
+*   Enter the **Source Name** (the string to be replaced, typically the original project's name).
+*   Enter the **Destination Name** (the new string to replace the source name with).
+*   Click "Clone Project" to start the process.
+
+### CLI Mode
+
+Run the script with four arguments: `<src_dir>`, `<dst_dir>`, `<src_name>`, and `<dst_name>`.
+
+```bash
+python clone_project.py <src_dir> <dst_dir> <src_name> <dst_name>
+```
+
+**Arguments:**
+
+*   `<src_dir>`: The absolute or relative path to the source project directory you wish to clone.
+*   `<dst_dir>`: The absolute or relative path where the new, cloned project will be created.
+*   `<src_name>`: The exact string (e.g., "MyOldProject") that exists in directory names, file names, or file contents within `<src_dir>` that you want to replace.
+*   `<dst_name>`: The exact string (e.g., "MyNewProject") that will replace all occurrences of `<src_name>`.
+
+**Example:**
+
+To clone a project located at `/home/user/projects/OldProject` to `/home/user/projects/NewProject`, replacing all instances of "OldProject" with "NewProject":
+
+```bash
+python clone_project.py /home/user/projects/OldProject /home/user/projects/NewProject OldProject NewProject
+```
+
+## How it Works
+
+The script performs a recursive walk through the `<src_dir>`. For each item found:
+
+1.  **Directory Names:** If a directory name contains `<src_name>`, it is renamed to include `<dst_name>` in the destination path.
+2.  **File Names:** If a file name contains `<src_name>`, it is renamed to include `<dst_name>` in the destination path.
+3.  **File Contents:** After copying, the content of each *text file* in the destination is read. All occurrences of `<src_name>` within the file's content are replaced with `<dst_name>`. Binary files are detected and skipped during this content replacement phase to avoid data corruption.
+
+**Important:** If the `<dst_dir>` already exists, the script will remove its contents (after user confirmation in GUI mode, or with a warning in CLI mode) before proceeding with the cloning operation.

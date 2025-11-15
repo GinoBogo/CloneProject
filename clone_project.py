@@ -14,7 +14,7 @@ from tkinter import filedialog, messagebox
 
 
 def show_help():
-    print("Usage: python script.py <src_dir> <dst_dir> <src_name> <dst_name>")
+    print("Usage: python clone_project.py <src_dir> <dst_dir> <src_name> <dst_name>")
     sys.exit(1)
 
 
