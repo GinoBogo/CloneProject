@@ -1,0 +1,30 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Run All Tests",
+            "type": "shell",
+            "command": "PYTHONPATH=. ${workspaceFolder}/.venv/bin/pytest",
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run Clone Project",
+            "type": "shell",
+            "command": "${workspaceFolder}/.venv/bin/python ${workspaceFolder}/clone_project.py",
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": []
+        }
+    ]
+}

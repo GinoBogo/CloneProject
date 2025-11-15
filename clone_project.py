@@ -25,8 +25,19 @@ ENTRY_WIDTH = 50
 def replace_in_contents(file_path, src_name, dst_name, logger):
     """Replace text content in a file, skipping binary/unreadable files."""
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            content = f.read()
+        with open(file_path, "rb") as f:  # Open in binary mode
+            content_bytes = f.read()
+
+        # Heuristic: if null byte is present, assume binary
+        if b'\x00' in content_bytes:
+            logger(f"Skipped file (likely binary): {file_path}")
+            return
+
+        try:
+            content = content_bytes.decode("utf-8")
+        except UnicodeDecodeError:
+            logger(f"Skipped file (not UTF-8 decodable): {file_path}")
+            return
 
         updated_content = content.replace(src_name, dst_name)
 
@@ -34,16 +45,15 @@ def replace_in_contents(file_path, src_name, dst_name, logger):
             f.write(updated_content)
 
         logger(f"Updated contents of: {file_path}")
-    except (UnicodeDecodeError, IOError):
-        # Skip binary or unreadable files
-        logger(f"Skipped file: {file_path}")
+    except IOError:  # Catch other IO errors
+        logger(f"Skipped file (IO Error): {file_path}")
 
 
 def copy_and_replace(src_dir, dst_dir, src_name, dst_name, logger):
     """Copy directory structure while replacing names in contents and filenames."""
     for root, dirs, files in os.walk(src_dir, topdown=True):
         # Replace directory names in path
-        new_root = re.sub(re.escape(src_name), dst_name, root.replace(src_dir, dst_dir))
+        new_root = re.sub(re.escape(src_name), dst_name, str(root).replace(str(src_dir), str(dst_dir)))
         os.makedirs(new_root, exist_ok=True)
 
         # Replace file names and copy files
@@ -234,12 +244,13 @@ def run_cli():
     if len(sys.argv) != 5:
         cli_logger("Error: Invalid number of arguments")
         show_help()
-
+        sys.exit(1)
+        return # Ensure function exits after sys.exit(1)
+    
     src_dir = os.path.abspath(sys.argv[1])
     dst_dir = os.path.abspath(sys.argv[2])
     src_name = sys.argv[3]
     dst_name = sys.argv[4]
-
     try:
         validate_inputs(src_dir, dst_dir, src_name, dst_name)
     except ValueError as e:
