@@ -28,14 +28,14 @@ def mock_logger():
 
 # --- Tests for `replace_in_contents` function ---
 
+# Description: Verifies that the `replace_in_contents` function correctly
+#              replaces occurrences of a specified string within a text file.
+# Methodology:
+#     - Creates a temporary text file with known content using `tmp_path`.
+#     - Calls `replace_in_contents` to replace an "old_name" with a "new_name".
+#     - Asserts that the file's content has been updated as expected.
+#     - Asserts that the `mock_logger` was called with the "Updated contents of:" message.
 def test_replace_in_contents(tmp_path, mock_logger):
-    # Description: Verifies that the `replace_in_contents` function correctly
-    #              replaces occurrences of a specified string within a text file.
-    # Methodology:
-    #     - Creates a temporary text file with known content using `tmp_path`.
-    #     - Calls `replace_in_contents` to replace an "old_name" with a "new_name".
-    #     - Asserts that the file's content has been updated as expected.
-    #     - Asserts that the `mock_logger` was called with the "Updated contents of:" message.
     file_path = tmp_path / "test_file.txt"
     file_path.write_text("This is an old_name project.")
     replace_in_contents(file_path, "old_name", "new_name", mock_logger)
@@ -43,15 +43,15 @@ def test_replace_in_contents(tmp_path, mock_logger):
     mock_logger.assert_called_with(f"Updated contents of: {file_path}")
 
 
+# Description: Ensures that `replace_in_contents` correctly identifies and
+#              skips binary files, preventing corruption, and logs the
+#              skipping action.
+# Methodology:
+#     - Creates a temporary file containing binary data (null bytes) using `tmp_path`.
+#     - Calls `replace_in_contents` with this binary file.
+#     - Asserts that the binary file's content remains unchanged.
+#     - Asserts that the `mock_logger` was called with the "Skipped file (likely binary):" message.
 def test_replace_in_contents_binary_file(tmp_path, mock_logger):
-    # Description: Ensures that `replace_in_contents` correctly identifies and
-    #              skips binary files, preventing corruption, and logs the
-    #              skipping action.
-    # Methodology:
-    #     - Creates a temporary file containing binary data (null bytes) using `tmp_path`.
-    #     - Calls `replace_in_contents` with this binary file.
-    #     - Asserts that the binary file's content remains unchanged.
-    #     - Asserts that the `mock_logger` was called with the "Skipped file (likely binary):" message.
     # Create a dummy binary file (e.g., a few null bytes)
     binary_file_path = tmp_path / "binary.bin"
     binary_file_path.write_bytes(b"\x00\x01\x02\x03")
@@ -63,21 +63,21 @@ def test_replace_in_contents_binary_file(tmp_path, mock_logger):
 
 # --- Tests for `copy_and_replace` function ---
 
+# Description: Validates the end-to-end functionality of `copy_and_replace`,
+#              including directory creation, file copying, renaming of
+#              files/directories, and content replacement within files.
+# Methodology:
+#     - Sets up a dummy source directory structure with nested files and
+#       directories, some containing the "old_project_name".
+#     - Calls `copy_and_replace` to clone this structure to a destination,
+#       replacing "old_project_name" with "new_project_name".
+#     - Asserts that the destination directory and its renamed
+#       subdirectories/files exist.
+#     - Asserts that the content of the copied text files has been
+#       correctly updated.
+#     - Asserts that the `mock_logger` was called with "Updated contents of:"
+#       messages for the modified files.
 def test_copy_and_replace(tmp_path, mock_logger):
-    # Description: Validates the end-to-end functionality of `copy_and_replace`,
-    #              including directory creation, file copying, renaming of
-    #              files/directories, and content replacement within files.
-    # Methodology:
-    #     - Sets up a dummy source directory structure with nested files and
-    #       directories, some containing the "old_project_name".
-    #     - Calls `copy_and_replace` to clone this structure to a destination,
-    #       replacing "old_project_name" with "new_project_name".
-    #     - Asserts that the destination directory and its renamed
-    #       subdirectories/files exist.
-    #     - Asserts that the content of the copied text files has been
-    #       correctly updated.
-    #     - Asserts that the `mock_logger` was called with "Updated contents of:"
-    #       messages for the modified files.
     src_dir = tmp_path / "src_old_project"
     dst_dir = tmp_path / "dst_new_project"
     src_dir.mkdir()
@@ -105,58 +105,58 @@ def test_copy_and_replace(tmp_path, mock_logger):
 
 # --- Tests for `validate_inputs` function ---
 
+# Description: Checks that `validate_inputs` does not raise any `ValueError`
+#              when provided with a set of valid input parameters.
+# Methodology:
+#     - Mocks `os.path.isdir` to return `True` for the source directory,
+#       simulating its existence.
+#     - Calls `validate_inputs` with valid paths and names.
+#     - The test passes if no `ValueError` is raised.
 @patch("os.path.isdir")
 def test_validate_inputs_valid(mock_isdir):
-    # Description: Checks that `validate_inputs` does not raise any `ValueError`
-    #              when provided with a set of valid input parameters.
-    # Methodology:
-    #     - Mocks `os.path.isdir` to return `True` for the source directory,
-    #       simulating its existence.
-    #     - Calls `validate_inputs` with valid paths and names.
-    #     - The test passes if no `ValueError` is raised.
     mock_isdir.return_value = True  # Mock source directory as existing
     validate_inputs("/src", "/dst", "old", "new")  # Should not raise an error
 
 
+# Description: Verifies that `validate_inputs` raises a `ValueError` with the
+#              specific message "All fields are required." when any of the
+#              input parameters are empty.
+# Methodology:
+#     - Uses `pytest.raises` to assert that `ValueError` is raised when
+#       `src_dir` or `dst_dir` are empty strings.
 def test_validate_inputs_missing_fields():
-    # Description: Verifies that `validate_inputs` raises a `ValueError` with the
-    #              specific message "All fields are required." when any of the
-    #              input parameters are empty.
-    # Methodology:
-    #     - Uses `pytest.raises` to assert that `ValueError` is raised when
-    #       `src_dir` or `dst_dir` are empty strings.
     with pytest.raises(ValueError, match="All fields are required."):
         validate_inputs("", "/dst", "old", "new")
     with pytest.raises(ValueError, match="All fields are required."):
         validate_inputs("/src", "", "old", "new")
 
 
+# Description: Confirms that `validate_inputs` raises a `ValueError` with the
+#              message "Source directory 'non_existent_dir' not found." when
+#              the provided source directory does not exist.
+# Methodology:
+#     - Uses `pytest.raises` to assert that `ValueError` is raised when a
+#       non-existent source directory is provided. (Note: `os.path.isdir` is
+#       not mocked here, so it behaves realistically for a non-existent path).
 def test_validate_inputs_src_dir_not_found():
-    # Description: Confirms that `validate_inputs` raises a `ValueError` with the
-    #              message "Source directory 'non_existent_dir' not found." when
-    #              the provided source directory does not exist.
-    # Methodology:
-    #     - Uses `pytest.raises` to assert that `ValueError` is raised when a
-    #       non-existent source directory is provided. (Note: `os.path.isdir` is
-    #       not mocked here, so it behaves realistically for a non-existent path).
     with pytest.raises(
         ValueError, match="Source directory 'non_existent_dir' not found."
     ):
         validate_inputs("non_existent_dir", "/dst", "old", "new")
 
 
+# Description: Tests the specific validation rule that prevents cloning a
+#              project onto itself if both the source/destination directories
+#              and names are identical.
+# Methodology:
+#     - Mocks `os.path.isdir` to return `True` for the source directory.
+#     - Calls `validate_inputs` with identical source and destination
+#       directories and names.
+#     - Uses `pytest.raises` to assert that a `ValueError` with the message
+#       "Source and destination directories must be different if source and
+#       destination names are identical." is raised.
 @patch("os.path.isdir")
 def test_validate_inputs_identical_src_dst_with_same_name(mock_isdir):
-    # Description: Tests the specific validation rule that prevents cloning a
-    #              project onto itself if both the source/destination directories
-    #              and names are identical.
-    # Methodology:
-    #     - Mocks `os.path.isdir` to return `True` for the source directory.
-    #     - Calls `validate_inputs` with identical source and destination
-    #       directories and names.
-    #     - Uses `pytest.raises` to assert that a `ValueError` with the message
-    #       "Source and destination directories must be different if source and
-    #       destination names are identical." is raised.
     mock_isdir.return_value = True  # Mock source directory as existing
     with pytest.raises(
         ValueError,
@@ -168,14 +168,14 @@ def test_validate_inputs_identical_src_dst_with_same_name(mock_isdir):
 
 # --- Tests for `cli_logger` function ---
 
+# Description: Verifies that the `cli_logger` function correctly prints
+#              messages to standard output (stdout).
+# Methodology:
+#     - Uses the `capsys` fixture to capture stdout.
+#     - Calls `cli_logger` with a test message.
+#     - Asserts that the captured stdout matches the expected message
+#       followed by a newline.
 def test_cli_logger(capsys):
-    # Description: Verifies that the `cli_logger` function correctly prints
-    #              messages to standard output (stdout).
-    # Methodology:
-    #     - Uses the `capsys` fixture to capture stdout.
-    #     - Calls `cli_logger` with a test message.
-    #     - Asserts that the captured stdout matches the expected message
-    #       followed by a newline.
     cli_logger("CLI log message")
     captured = capsys.readouterr()
     assert captured.out == "CLI log message\n"
@@ -183,6 +183,18 @@ def test_cli_logger(capsys):
 
 # --- Tests for `run_cli` function ---
 
+# Description: Tests the successful execution path of `run_cli` when all
+#              inputs are valid and the destination does not initially exist.
+# Methodology:
+#     - Mocks `os.path.exists` to return `False` (destination does not exist).
+#     - Mocks `validate_inputs`, `copy_and_replace`, and `shutil.rmtree` to
+#       control their behavior.
+#     - Patches `sys.argv` to provide valid CLI arguments.
+#     - Calls `run_cli`.
+#     - Asserts that `validate_inputs` and `copy_and_replace` were called
+#       once with the correct arguments.
+#     - Asserts that `shutil.rmtree` was *not* called.
+#     - Asserts that the correct success messages are printed to stdout.
 @patch("clone_project.copy_and_replace")
 @patch("clone_project.validate_inputs")
 @patch("os.path.exists")
@@ -191,18 +203,6 @@ def test_cli_logger(capsys):
 def test_run_cli_success(
     mock_rmtree, mock_exists, mock_validate_inputs, mock_copy_and_replace, capsys
 ):
-    # Description: Tests the successful execution path of `run_cli` when all
-    #              inputs are valid and the destination does not initially exist.
-    # Methodology:
-    #     - Mocks `os.path.exists` to return `False` (destination does not exist).
-    #     - Mocks `validate_inputs`, `copy_and_replace`, and `shutil.rmtree` to
-    #       control their behavior.
-    #     - Patches `sys.argv` to provide valid CLI arguments.
-    #     - Calls `run_cli`.
-    #     - Asserts that `validate_inputs` and `copy_and_replace` were called
-    #       once with the correct arguments.
-    #     - Asserts that `shutil.rmtree` was *not* called.
-    #     - Asserts that the correct success messages are printed to stdout.
     mock_exists.return_value = False  # Destination does not exist
     run_cli()
     mock_validate_inputs.assert_called_once_with("/src", "/dst", "old", "new")
@@ -214,18 +214,18 @@ def test_run_cli_success(
     assert "Operation completed successfully." in captured.out
 
 
+# Description: Verifies that `run_cli` correctly handles an insufficient
+#              number of command-line arguments by logging an error,
+#              displaying help, and exiting with status code 1.
+# Methodology:
+#     - Mocks `sys.exit` to raise `SystemExit(1)` when called.
+#     - Uses `monkeypatch` to set `sys.argv` with missing arguments.
+#     - Uses `pytest.raises(SystemExit)` to catch the program exit.
+#     - Asserts that `sys.exit` was called with `1`.
+#     - Asserts that the "Error: Invalid number of arguments" and "Usage:"
+#       messages are printed to stdout.
 @patch("sys.exit")
 def test_run_cli_invalid_arguments(mock_exit, capsys, monkeypatch):
-    # Description: Verifies that `run_cli` correctly handles an insufficient
-    #              number of command-line arguments by logging an error,
-    #              displaying help, and exiting with status code 1.
-    # Methodology:
-    #     - Mocks `sys.exit` to raise `SystemExit(1)` when called.
-    #     - Uses `monkeypatch` to set `sys.argv` with missing arguments.
-    #     - Uses `pytest.raises(SystemExit)` to catch the program exit.
-    #     - Asserts that `sys.exit` was called with `1`.
-    #     - Asserts that the "Error: Invalid number of arguments" and "Usage:"
-    #       messages are printed to stdout.
     mock_exit.side_effect = SystemExit(1)  # Configure mock_exit to raise SystemExit(1)
     monkeypatch.setattr(sys, "argv", ["clone_project.py", "/src", "/dst", "old"])
     with pytest.raises(SystemExit) as pytest_wrapped_e:
@@ -238,18 +238,18 @@ def test_run_cli_invalid_arguments(mock_exit, capsys, monkeypatch):
     assert "Usage: python clone_project.py" in captured.out
 
 
+# Description: Checks that `run_cli` gracefully handles `ValueError`
+#              exceptions raised by `validate_inputs`, logging the error
+#              and exiting with status code 1.
+# Methodology:
+#     - Mocks `validate_inputs` to raise a `ValueError`.
+#     - Patches `sys.argv` with valid-looking arguments that would trigger
+#       the validation error.
+#     - Uses `pytest.raises(SystemExit)` to catch the program exit.
+#     - Asserts that the specific validation error message is printed to stdout.
 @patch("clone_project.validate_inputs")
 @patch("sys.argv", ["clone_project.py", "/src", "/dst", "old", "new"])
 def test_run_cli_validation_error(mock_validate_inputs, capsys):
-    # Description: Checks that `run_cli` gracefully handles `ValueError`
-    #              exceptions raised by `validate_inputs`, logging the error
-    #              and exiting with status code 1.
-    # Methodology:
-    #     - Mocks `validate_inputs` to raise a `ValueError`.
-    #     - Patches `sys.argv` with valid-looking arguments that would trigger
-    #       the validation error.
-    #     - Uses `pytest.raises(SystemExit)` to catch the program exit.
-    #     - Asserts that the specific validation error message is printed to stdout.
     mock_validate_inputs.side_effect = ValueError("Test validation error.")
     with pytest.raises(SystemExit) as pytest_wrapped_e:
         run_cli()
@@ -259,6 +259,16 @@ def test_run_cli_validation_error(mock_validate_inputs, capsys):
     assert "Error: Test validation error." in captured.out
 
 
+# Description: Tests the scenario where the destination directory already
+#              exists in CLI mode, ensuring it's removed before cloning proceeds.
+# Methodology:
+#     - Mocks `os.path.exists` to return `True` (destination exists).
+#     - Mocks `shutil.rmtree` to verify its call.
+#     - Patches `sys.argv` to provide valid CLI arguments.
+#     - Calls `run_cli`.
+#     - Asserts that `shutil.rmtree` was called once with the destination path.
+#     - Asserts that the "Warning: Destination directory already exists. Overwriting..."
+#       message is printed to stdout.
 @patch("clone_project.copy_and_replace")
 @patch("clone_project.validate_inputs")
 @patch("os.path.exists")
@@ -267,16 +277,6 @@ def test_run_cli_validation_error(mock_validate_inputs, capsys):
 def test_run_cli_dst_exists_overwrite(
     mock_rmtree, mock_exists, mock_validate_inputs, mock_copy_and_replace, capsys
 ):
-    # Description: Tests the scenario where the destination directory already
-    #              exists in CLI mode, ensuring it's removed before cloning proceeds.
-    # Methodology:
-    #     - Mocks `os.path.exists` to return `True` (destination exists).
-    #     - Mocks `shutil.rmtree` to verify its call.
-    #     - Patches `sys.argv` to provide valid CLI arguments.
-    #     - Calls `run_cli`.
-    #     - Asserts that `shutil.rmtree` was called once with the destination path.
-    #     - Asserts that the "Warning: Destination directory already exists. Overwriting..."
-    #       message is printed to stdout.
     mock_exists.return_value = True  # Destination exists
     run_cli()
     mock_rmtree.assert_called_once_with("/dst")
@@ -289,17 +289,17 @@ def test_run_cli_dst_exists_overwrite(
 
 # --- Tests for `show_help` function ---
 
+# Description: Verifies that the `show_help` function prints the correct
+#              usage message to stdout and then exits the program with
+#              status code 1.
+# Methodology:
+#     - Mocks `sys.exit` to prevent actual program termination.
+#     - Uses `capsys` to capture stdout.
+#     - Calls `show_help`.
+#     - Asserts that the captured stdout contains the expected "Usage:" message.
+#     - Asserts that `sys.exit` was called once with `1`.
 @patch("sys.exit")
 def test_show_help(mock_exit, capsys):
-    # Description: Verifies that the `show_help` function prints the correct
-    #              usage message to stdout and then exits the program with
-    #              status code 1.
-    # Methodology:
-    #     - Mocks `sys.exit` to prevent actual program termination.
-    #     - Uses `capsys` to capture stdout.
-    #     - Calls `show_help`.
-    #     - Asserts that the captured stdout contains the expected "Usage:" message.
-    #     - Asserts that `sys.exit` was called once with `1`.
     show_help()
     captured = capsys.readouterr()
     assert (
