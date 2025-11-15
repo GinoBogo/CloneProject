@@ -65,3 +65,7 @@ The script performs a recursive walk through the `<src_dir>`. For each item foun
 3.  **File Contents:** After copying, the content of each *text file* in the destination is read. All occurrences of `<src_name>` within the file's content are replaced with `<dst_name>`. Binary files are detected and skipped during this content replacement phase to avoid data corruption.
 
 **Important:** If the `<dst_dir>` already exists, the script will remove its contents (after user confirmation in GUI mode, or with a warning in CLI mode) before proceeding with the cloning operation.
+
+## Disclaimer
+
+This software is provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose and non-infringement. In no event shall the authors or copyright holders be liable for any claim, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the software or the use or other dealings in the software. The user assumes all risks associated with the use of this software, including but not limited to data loss, project corruption, or any other damage that may arise from the cloning process.
