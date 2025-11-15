@@ -1,7 +1,8 @@
 # CloneProject
 Utility to clone a project via CLI or Tkinter GUI.
 
-CloneProject takes an existing codebase and produces a fully renamed copy. You provide the source directory/name and the destination directory/name either via command-line arguments or through the Tkinter GUI. The script copies every file and folder, renaming paths that contain the original project name and replacing occurrences of that name inside text files. This makes it easy to bootstrap a new project from a template without manually updating identifiers.
+CloneProject takes an existing codebase and produces a fully renamed copy. You provide the source directory/name and the destination directory/name either via command-line arguments or through the Tkinter GUI. The script copies every file and folder, renaming paths that contain the original project name and replacing occurrences of that name inside text files. This makes it easy to bootstrap a new project from a template without manually updating identifiers. Personally, I used this script to clone Microchip MPLAB X IDE projects, which are notoriously difficult to copy without breaking.
+
 
 ## Features
 
