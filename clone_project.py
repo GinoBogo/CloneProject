@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-"""Utility to clone a project via CLI or Tkinter GUI.
-
+"""
+Utility to clone a project via CLI or Tkinter GUI. This script allows users to
+duplicate a project, replacing specific names within file contents and
+filenames.
 
 Author: Gino Bogo
 """
@@ -13,28 +15,34 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 
 
-def show_help():
-    print("Usage: python clone_project.py <src_dir> <dst_dir> <src_name> <dst_name>")
-    sys.exit(1)
+# ===== CONFIGURATION & CONSTANTS =====
+DEFAULT_WINDOW_SIZE = (600, 600)
+LABEL_WIDTH = 20
+ENTRY_WIDTH = 50
 
 
-def replace_in_contents(file_path, src_name, dst_name):
+# ===== CORE FUNCTIONALITY =====
+def replace_in_contents(file_path, src_name, dst_name, logger):
+    """Replace text content in a file, skipping binary/unreadable files."""
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
+
         updated_content = content.replace(src_name, dst_name)
+
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(updated_content)
-        print(f"Updated contents of: {file_path}")
+
+        logger(f"Updated contents of: {file_path}")
     except (UnicodeDecodeError, IOError):
         # Skip binary or unreadable files
-        print(f"Skipped file: {file_path}")
+        logger(f"Skipped file: {file_path}")
 
 
-def copy_and_replace(src_dir, dst_dir, src_name, dst_name):
-    # Walk through the source directory
+def copy_and_replace(src_dir, dst_dir, src_name, dst_name, logger):
+    """Copy directory structure while replacing names in contents and filenames."""
     for root, dirs, files in os.walk(src_dir, topdown=True):
-        # Replace directory names
+        # Replace directory names in path
         new_root = re.sub(re.escape(src_name), dst_name, root.replace(src_dir, dst_dir))
         os.makedirs(new_root, exist_ok=True)
 
@@ -43,8 +51,9 @@ def copy_and_replace(src_dir, dst_dir, src_name, dst_name):
             src_file_path = os.path.join(root, file)
             new_file_name = re.sub(re.escape(src_name), dst_name, file)
             dst_file_path = os.path.join(new_root, new_file_name)
+
             shutil.copy2(src_file_path, dst_file_path)
-            replace_in_contents(dst_file_path, src_name, dst_name)
+            replace_in_contents(dst_file_path, src_name, dst_name, logger)
 
         # Replace subdirectory names
         for dir in dirs:
@@ -52,121 +61,178 @@ def copy_and_replace(src_dir, dst_dir, src_name, dst_name):
             os.makedirs(os.path.join(new_root, new_dir_name), exist_ok=True)
 
 
-def run_gui():
-    root = tk.Tk()
-    root.title("Clone Project")
-    root.minsize(600, 600)
+# ===== VALIDATION & HELPER FUNCTIONS =====
+def validate_inputs(src_dir, dst_dir, src_name, dst_name):
+    """Validate all input parameters."""
+    if not all([src_dir, dst_dir, src_name, dst_name]):
+        raise ValueError("All fields are required.")
 
-    def log(message):
-        log_text.configure(state="normal")
-        log_text.insert(tk.END, f"{message}\n")
-        log_text.see(tk.END)
-        log_text.configure(state="disabled")
+    if not os.path.isdir(src_dir):
+        raise ValueError(f"Source directory '{src_dir}' not found.")
 
-    def browse_dir(entry):
+    if src_name == dst_name and src_dir == dst_dir:
+        raise ValueError(
+            "Source and destination directories must be different if "
+            "source and destination names are identical."
+        )
+
+
+def show_help():
+    """Display CLI usage information."""
+    print("Usage: python clone_project.py <src_dir> <dst_dir> <src_name> <dst_name>")
+    sys.exit(1)
+
+
+# ===== GUI IMPLEMENTATION =====
+class CloneProjectGUI:
+    """Tkinter GUI for the clone project utility."""
+
+    def __init__(self):
+        self.root = tk.Tk()
+        self.root.title("Clone Project")
+        self.root.minsize(*DEFAULT_WINDOW_SIZE)
+
+        self.setup_ui()
+
+    def setup_ui(self):
+        """Initialize all GUI components."""
+        main_frame = tk.Frame(self.root, padx=10, pady=10)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Input fields
+        self.setup_input_fields(main_frame)
+
+        # Control buttons
+        self.setup_buttons(main_frame)
+
+        # Log output
+        self.setup_log_area(main_frame)
+
+        # Layout configuration
+        self.configure_layout(main_frame)
+
+    def setup_input_fields(self, parent):
+        """Create and arrange input fields with labels."""
+        # Source directory
+        tk.Label(parent, text="Source Directory:", width=LABEL_WIDTH, anchor="e").grid(
+            row=0, column=0, sticky="e"
+        )
+        self.src_entry = tk.Entry(parent, width=ENTRY_WIDTH)
+        self.src_entry.grid(row=0, column=1, padx=5, pady=5, sticky="we")
+        tk.Button(
+            parent, text="Browse", command=lambda: self.browse_dir(self.src_entry)
+        ).grid(row=0, column=2, padx=5, pady=5)
+
+        # Destination directory
+        tk.Label(
+            parent, text="Destination Directory:", width=LABEL_WIDTH, anchor="e"
+        ).grid(row=1, column=0, sticky="e")
+        self.dst_entry = tk.Entry(parent, width=ENTRY_WIDTH)
+        self.dst_entry.grid(row=1, column=1, padx=5, pady=5, sticky="we")
+        tk.Button(
+            parent, text="Browse", command=lambda: self.browse_dir(self.dst_entry)
+        ).grid(row=1, column=2, padx=5, pady=5)
+
+        # Source name
+        tk.Label(parent, text="Source Name:", width=LABEL_WIDTH, anchor="e").grid(
+            row=2, column=0, sticky="e"
+        )
+        self.src_name_entry = tk.Entry(parent, width=ENTRY_WIDTH)
+        self.src_name_entry.grid(row=2, column=1, padx=5, pady=5, sticky="we")
+
+        # Destination name
+        tk.Label(parent, text="Destination Name:", width=LABEL_WIDTH, anchor="e").grid(
+            row=3, column=0, sticky="e"
+        )
+        self.dst_name_entry = tk.Entry(parent, width=ENTRY_WIDTH)
+        self.dst_name_entry.grid(row=3, column=1, padx=5, pady=5, sticky="we")
+
+    def setup_buttons(self, parent):
+        """Create control buttons."""
+        tk.Button(parent, text="Clone Project", command=self.run_clone).grid(
+            row=4, column=0, columnspan=3, pady=(10, 5), sticky="we"
+        )
+
+    def setup_log_area(self, parent):
+        """Create logging text area with scrollbar."""
+        self.log_text = tk.Text(parent, height=10, state="disabled")
+        self.log_text.grid(row=5, column=0, columnspan=3, pady=(10, 0), sticky="nsew")
+
+        scrollbar = tk.Scrollbar(parent, command=self.log_text.yview)
+        scrollbar.grid(row=5, column=3, sticky="ns")
+        self.log_text.configure(yscrollcommand=scrollbar.set)
+
+    def configure_layout(self, parent):
+        """Configure grid weights for responsive layout."""
+        parent.columnconfigure(1, weight=1)
+        parent.rowconfigure(5, weight=1)
+
+    def browse_dir(self, entry_widget):
+        """Open directory browser and update entry field."""
         path = filedialog.askdirectory()
         if path:
-            entry.delete(0, tk.END)
-            entry.insert(0, path)
+            entry_widget.delete(0, tk.END)
+            entry_widget.insert(0, path)
 
-    def run_clone():
-        src_dir = os.path.abspath(src_entry.get().strip())
-        dst_dir = os.path.abspath(dst_entry.get().strip())
-        src_name = src_name_entry.get().strip()
-        dst_name = dst_name_entry.get().strip()
+    def gui_logger(self, message):
+        """Log messages to the GUI text area."""
+        self.log_text.configure(state="normal")
+        self.log_text.insert(tk.END, f"{message}\n")
+        self.log_text.see(tk.END)
+        self.log_text.configure(state="disabled")
 
-        if not src_dir or not dst_dir or not src_name or not dst_name:
-            messagebox.showerror("Missing data", "All fields are required.")
-            return
-
-        if not os.path.isdir(src_dir):
-            messagebox.showerror(
-                "Invalid source", f"Source directory '{src_dir}' not found."
-            )
-            return
-
-        if os.path.exists(dst_dir):
-            overwrite = messagebox.askyesno(
-                "Destination exists",
-                f"Destination '{dst_dir}' already exists. Overwrite?",
-            )
-            if not overwrite:
-                return
-            shutil.rmtree(dst_dir)
-
+    def run_clone(self):
+        """Execute the clone operation from GUI inputs."""
         try:
-            log("Copying and replacing...")
-            copy_and_replace(src_dir, dst_dir, src_name, dst_name)
-            log(f"Operation completed successfully. New project location: {dst_dir}")
+            src_dir = os.path.abspath(self.src_entry.get().strip())
+            dst_dir = os.path.abspath(self.dst_entry.get().strip())
+            src_name = self.src_name_entry.get().strip()
+            dst_name = self.dst_name_entry.get().strip()
+
+            validate_inputs(src_dir, dst_dir, src_name, dst_name)
+
+            # Handle existing destination
+            if os.path.exists(dst_dir):
+                overwrite = messagebox.askyesno(
+                    "Destination exists",
+                    f"Destination '{dst_dir}' already exists. Overwrite?",
+                )
+                if not overwrite:
+                    return
+                shutil.rmtree(dst_dir)
+
+            # Perform clone operation
+            self.gui_logger("Copying and replacing...")
+            copy_and_replace(src_dir, dst_dir, src_name, dst_name, self.gui_logger)
+            self.gui_logger(
+                f"Operation completed successfully. New project location: {dst_dir}"
+            )
             messagebox.showinfo("Success", "Project cloned successfully.")
-        except Exception as exc:  # pragma: no cover - GUI feedback only
-            messagebox.showerror("Error", str(exc))
 
-    main_frame = tk.Frame(root, padx=10, pady=10)
-    main_frame.pack(fill=tk.BOTH, expand=True)
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
 
-    label_width = 20
-
-    # Source directory
-    tk.Label(main_frame, text="Source Directory:", width=label_width, anchor="e").grid(
-        row=0, column=0, sticky="e"
-    )
-    src_entry = tk.Entry(main_frame, width=50)
-    src_entry.grid(row=0, column=1, padx=5, pady=5, sticky="we")
-    tk.Button(main_frame, text="Browse", command=lambda: browse_dir(src_entry)).grid(
-        row=0, column=2, padx=5, pady=5
-    )
-
-    # Destination directory
-    tk.Label(
-        main_frame, text="Destination Directory:", width=label_width, anchor="e"
-    ).grid(row=1, column=0, sticky="e")
-    dst_entry = tk.Entry(main_frame, width=50)
-    dst_entry.grid(row=1, column=1, padx=5, pady=5, sticky="we")
-    tk.Button(main_frame, text="Browse", command=lambda: browse_dir(dst_entry)).grid(
-        row=1, column=2, padx=5, pady=5
-    )
-
-    # Source name
-    tk.Label(main_frame, text="Source Name:", width=label_width, anchor="e").grid(
-        row=2, column=0, sticky="e"
-    )
-    src_name_entry = tk.Entry(main_frame, width=50)
-    src_name_entry.grid(row=2, column=1, padx=5, pady=5, sticky="we")
-
-    # Destination name
-    tk.Label(main_frame, text="Destination Name:", width=label_width, anchor="e").grid(
-        row=3, column=0, sticky="e"
-    )
-    dst_name_entry = tk.Entry(main_frame, width=50)
-    dst_name_entry.grid(row=3, column=1, padx=5, pady=5, sticky="we")
-
-    # Run button
-    tk.Button(main_frame, text="Clone Project", command=run_clone).grid(
-        row=4, column=0, columnspan=3, pady=(10, 5), sticky="we"
-    )
-
-    # Log output
-    log_text = tk.Text(main_frame, height=10, state="disabled")
-    log_text.grid(row=5, column=0, columnspan=3, pady=(10, 0), sticky="nsew")
-
-    scrollbar = tk.Scrollbar(main_frame, command=log_text.yview)
-    scrollbar.grid(row=5, column=3, sticky="ns")
-    log_text.configure(yscrollcommand=scrollbar.set)
-
-    main_frame.columnconfigure(1, weight=1)
-    main_frame.rowconfigure(5, weight=1)
-
-    root.mainloop()
+    def run(self):
+        """Start the GUI application."""
+        self.root.mainloop()
 
 
-if __name__ == "__main__":
-    if len(sys.argv) == 1:
-        run_gui()
-        sys.exit(0)
+def run_gui():
+    """Launch the GUI interface."""
+    app = CloneProjectGUI()
+    app.run()
 
+
+# ===== CLI IMPLEMENTATION =====
+def cli_logger(message):
+    """Simple logger for CLI mode."""
+    print(message)
+
+
+def run_cli():
+    """Execute the clone operation in CLI mode."""
     if len(sys.argv) != 5:
-        print("Error: Invalid number of arguments")
+        cli_logger("Error: Invalid number of arguments")
         show_help()
 
     src_dir = os.path.abspath(sys.argv[1])
@@ -174,16 +240,31 @@ if __name__ == "__main__":
     src_name = sys.argv[3]
     dst_name = sys.argv[4]
 
-    if not os.path.isdir(src_dir):
-        print(f"Error: Source directory '{src_dir}' not found")
+    try:
+        validate_inputs(src_dir, dst_dir, src_name, dst_name)
+    except ValueError as e:
+        cli_logger(f"Error: {e}")
         sys.exit(1)
 
+    # Handle existing destination
     if os.path.exists(dst_dir):
-        print(
-            f"Warning: Destination directory '{dst_dir}' already exists. Overwriting..."
+        cli_logger(
+            f"Warning: Destination directory '{dst_dir}' already exists. "
+            f"Overwriting..."
         )
         shutil.rmtree(dst_dir)
 
-    print("Copying and replacing...")
-    copy_and_replace(src_dir, dst_dir, src_name, dst_name)
-    print(f"Operation completed successfully. New project location: {dst_dir}")
+    # Perform clone operation
+    cli_logger("Copying and replacing...")
+    copy_and_replace(src_dir, dst_dir, src_name, dst_name, cli_logger)
+    cli_logger(f"Operation completed successfully. New project location: {dst_dir}")
+
+
+# ===== MAIN EXECUTION =====
+if __name__ == "__main__":
+    if len(sys.argv) == 1:
+        # No arguments - run GUI
+        run_gui()
+    else:
+        # CLI arguments provided - run CLI mode
+        run_cli()
