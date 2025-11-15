@@ -29,7 +29,7 @@ def replace_in_contents(file_path, src_name, dst_name, logger):
             content_bytes = f.read()
 
         # Heuristic: if null byte is present, assume binary
-        if b'\x00' in content_bytes:
+        if b"\x00" in content_bytes:
             logger(f"Skipped file (likely binary): {file_path}")
             return
 
@@ -53,7 +53,9 @@ def copy_and_replace(src_dir, dst_dir, src_name, dst_name, logger):
     """Copy directory structure while replacing names in contents and filenames."""
     for root, dirs, files in os.walk(src_dir, topdown=True):
         # Replace directory names in path
-        new_root = re.sub(re.escape(src_name), dst_name, str(root).replace(str(src_dir), str(dst_dir)))
+        new_root = re.sub(
+            re.escape(src_name), dst_name, str(root).replace(str(src_dir), str(dst_dir))
+        )
         os.makedirs(new_root, exist_ok=True)
 
         # Replace file names and copy files
@@ -129,9 +131,6 @@ class CloneProjectGUI:
         )
         self.src_entry = tk.Entry(parent, width=ENTRY_WIDTH)
         self.src_entry.grid(row=0, column=1, padx=5, pady=5, sticky="we")
-        tk.Button(
-            parent, text="Browse", command=lambda: self.browse_dir(self.src_entry)
-        ).grid(row=0, column=2, padx=5, pady=5)
 
         # Destination directory
         tk.Label(
@@ -139,9 +138,6 @@ class CloneProjectGUI:
         ).grid(row=1, column=0, sticky="e")
         self.dst_entry = tk.Entry(parent, width=ENTRY_WIDTH)
         self.dst_entry.grid(row=1, column=1, padx=5, pady=5, sticky="we")
-        tk.Button(
-            parent, text="Browse", command=lambda: self.browse_dir(self.dst_entry)
-        ).grid(row=1, column=2, padx=5, pady=5)
 
         # Source name
         tk.Label(parent, text="Source Name:", width=LABEL_WIDTH, anchor="e").grid(
@@ -159,9 +155,35 @@ class CloneProjectGUI:
 
     def setup_buttons(self, parent):
         """Create control buttons."""
-        tk.Button(parent, text="Clone Project", command=self.run_clone).grid(
-            row=4, column=0, columnspan=3, pady=(10, 5), sticky="we"
-        )
+        # Browse Source button
+        tk.Button(
+            parent,
+            text="Browse",
+            command=lambda: self.browse_dir(self.src_entry),
+            bg="#0078D7",
+            fg="#FFFFFF",
+            cursor="hand2",
+        ).grid(row=0, column=2, padx=5, pady=5)
+
+        # Browse Destination button
+        tk.Button(
+            parent,
+            text="Browse",
+            command=lambda: self.browse_dir(self.dst_entry),
+            bg="#0078D7",
+            fg="#FFFFFF",
+            cursor="hand2",
+        ).grid(row=1, column=2, padx=5, pady=5)
+
+        # Clone Project button
+        tk.Button(
+            parent,
+            text="Clone Project",
+            command=self.run_clone,
+            bg="#FFFF00",
+            fg="#000000",
+            cursor="hand2",
+        ).grid(row=4, column=0, columnspan=3, pady=(10, 5), sticky="we")
 
     def setup_log_area(self, parent):
         """Create logging text area with scrollbar."""
@@ -245,8 +267,8 @@ def run_cli():
         cli_logger("Error: Invalid number of arguments")
         show_help()
         sys.exit(1)
-        return # Ensure function exits after sys.exit(1)
-    
+        return  # Ensure function exits after sys.exit(1)
+
     src_dir = os.path.abspath(sys.argv[1])
     dst_dir = os.path.abspath(sys.argv[2])
     src_name = sys.argv[3]
