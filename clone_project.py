@@ -40,7 +40,7 @@ def parse_name_list(names_str):
     return [name for name in names if name]
 
 
-def validate_inputs(src_dir, dst_dir, src_names, dst_names):
+def validate_inputs(src_dir, dst_dir, src_names, dst_names, logger):
     """Validate all input parameters."""
     if not all([src_dir, dst_dir]) or not src_names or not dst_names:
         raise ValueError("All fields are required and must contain at least one name.")
@@ -54,25 +54,24 @@ def validate_inputs(src_dir, dst_dir, src_names, dst_names):
             f"destination names ({len(dst_names)})."
         )
 
-    # Check for empty names
+    # Check for empty names and identical names
     for i, (src_name, dst_name) in enumerate(zip(src_names, dst_names), 1):
         if not src_name:
             raise ValueError(f"Source name #{i} cannot be empty.")
         if not dst_name:
             raise ValueError(f"Destination name #{i} cannot be empty.")
 
+        if src_name == dst_name:
+            if src_dir != dst_dir:
+                logger(
+                    f"Warning: Replacement pair '{src_name}' -> '{dst_name}' is identical. "
+                    "This will result in no change for this specific name.",
+                    level="warning",
+                )
+
     # Check for directory conflicts
     if src_dir == dst_dir:
-        conflicting_pairs = []
-        for src_name, dst_name in zip(src_names, dst_names):
-            if src_name == dst_name:
-                conflicting_pairs.append(f"'{src_name}' -> '{dst_name}'")
-
-        if conflicting_pairs:
-            raise ValueError(
-                "Source and destination directories must be different when "
-                f"source and destination names are identical: {', '.join(conflicting_pairs)}"
-            )
+        raise ValueError("Source and destination directories cannot be the same.")
 
 
 def show_help():
@@ -181,17 +180,6 @@ def copy_and_replace(src_dir, dst_dir, src_names, dst_names, logger):
             words_replaced += replace_in_contents(
                 dst_file_path, src_names, dst_names, logger
             )
-
-        # Replace subdirectory names in the 'dirs' list for os.walk to traverse correctly
-        for i in range(len(dirs)):
-            dir_name = dirs[i]
-            new_dir_name = dir_name
-            for src_name, dst_name in zip(src_names, dst_names):
-                new_dir_name = re.sub(re.escape(src_name), dst_name, new_dir_name)
-            # Note: The actual creation of the directory in the destination is
-            # handled by the new_root logic in the next iteration of os.walk
-            # when this renamed directory becomes the 'root'. We don't need to
-            # explicitly create it here.
 
     return folders_created, files_copied, words_replaced
 
@@ -308,10 +296,11 @@ class CloneProjectGUI:
         self.log_text.grid(row=5, column=0, columnspan=3, pady=(10, 0), sticky="nsew")
 
         # Configure text tags for different message levels
-        self.log_text.tag_configure("skipped", foreground="darkgray")
-        self.log_text.tag_configure("success", foreground="green")
         self.log_text.tag_configure("error", foreground="red")
+        self.log_text.tag_configure("warning", foreground="orange")
         self.log_text.tag_configure("info", foreground="blue")
+        self.log_text.tag_configure("success", foreground="green")
+        self.log_text.tag_configure("skipped", foreground="darkgray")
 
         # Horizontal scrollbar
         x_scrollbar = tk.Scrollbar(
@@ -357,14 +346,16 @@ class CloneProjectGUI:
     def gui_logger(self, message, level="normal"):
         """Log messages to the GUI text area."""
         self.log_text.configure(state="normal")
-        if level == "skipped":
-            self.log_text.insert(tk.END, f"{message}\n", "skipped")
-        elif level == "success":
-            self.log_text.insert(tk.END, f"{message}\n", "success")
-        elif level == "error":
+        if level == "error":
             self.log_text.insert(tk.END, f"{message}\n", "error")
+        elif level == "warning":
+            self.log_text.insert(tk.END, f"{message}\n", "warning")
         elif level == "info":
             self.log_text.insert(tk.END, f"{message}\n", "info")
+        elif level == "success":
+            self.log_text.insert(tk.END, f"{message}\n", "success")
+        elif level == "skipped":
+            self.log_text.insert(tk.END, f"{message}\n", "skipped")
         else:
             self.log_text.insert(tk.END, f"{message}\n")
         self.log_text.see(tk.END)
@@ -378,7 +369,7 @@ class CloneProjectGUI:
             src_names = parse_name_list(self.src_name_entry.get().strip())
             dst_names = parse_name_list(self.dst_name_entry.get().strip())
 
-            validate_inputs(src_dir, dst_dir, src_names, dst_names)
+            validate_inputs(src_dir, dst_dir, src_names, dst_names, self.gui_logger)
 
             # Log the replacement plan
             self.gui_logger("Replacement plan:", level="info")
@@ -403,14 +394,14 @@ class CloneProjectGUI:
 
             # Perform clone operation
             self.gui_logger("Starting clone operation...")
-            folders, files, words = copy_and_replace(
+            directories, files, names = copy_and_replace(
                 src_dir, dst_dir, src_names, dst_names, self.gui_logger
             )
 
             # Update statistics
-            self.directories_created.set(f"Directories: {folders}")
+            self.directories_created.set(f"Directories: {directories}")
             self.files_changed.set(f"Files: {files}")
-            self.names_replaced.set(f"Names: {words}")
+            self.names_replaced.set(f"Names: {names}")
 
             self.gui_logger(
                 f"Operation completed successfully. New project location: {dst_dir}",
@@ -445,7 +436,7 @@ def run_cli():
     dst_names = parse_name_list(sys.argv[4])
 
     try:
-        validate_inputs(src_dir, dst_dir, src_names, dst_names)
+        validate_inputs(src_dir, dst_dir, src_names, dst_names, cli_logger)
     except ValueError as e:
         cli_logger(f"Error: {e}")
         sys.exit(1)
@@ -470,12 +461,12 @@ def run_cli():
 
     # Perform clone operation
     cli_logger("Starting clone operation...")
-    folders, files, words = copy_and_replace(
+    directories, files, names = copy_and_replace(
         src_dir, dst_dir, src_names, dst_names, cli_logger
     )
-    cli_logger(f"Directories created: {folders}")
+    cli_logger(f"Directories created: {directories}")
     cli_logger(f"Files copied: {files}")
-    cli_logger(f"Names replaced: {words}")
+    cli_logger(f"Names replaced: {names}")
     cli_logger(f"Operation completed successfully. New project location: {dst_dir}")
 
 

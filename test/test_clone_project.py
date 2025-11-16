@@ -43,6 +43,52 @@ def test_replace_in_contents(tmp_path, mock_logger):
     )
 
 
+# Description: Verifies the behavior of `replace_in_contents` when duplicate
+#              source names are provided, demonstrating sequential replacement.
+# Methodology:
+#     - Creates a temporary text file with content containing the source name.
+#     - Calls `replace_in_contents` with a list containing the same source name twice,
+#       mapping to different destination names.
+#     - Asserts that the replacements are applied sequentially, and the final
+#       content reflects the last replacement for that source string.
+#     - Asserts the total number of replacements.
+def test_replace_in_contents_duplicate_src_names(tmp_path, mock_logger):
+    file_path = tmp_path / "test_duplicate_names.txt"
+    file_path.write_text("This is a test with gino.")
+    
+    # If 'gino' is replaced by 'bogo', and then 'gino' (which is now 'bogo') is replaced by 'bogo',
+    # the final content should be 'This is a test with bogo.'
+    # The total replacements should be 1, as 'gino' is only found and replaced once.
+    replacements = replace_in_contents(file_path, ["gino", "gino"], ["bogo", "bogo"], mock_logger)
+    assert file_path.read_text() == "This is a test with bogo."
+    assert replacements == 1
+    mock_logger.assert_called_with(
+        f"Updated contents of: {file_path} (1 replacements)"
+    )
+
+
+# Description: Verifies the behavior of `replace_in_contents` when duplicate
+#              destination names are provided.
+# Methodology:
+#     - Creates a temporary text file with content containing multiple distinct source names.
+#     - Calls `replace_in_contents` with distinct source names mapping to the same destination name.
+#     - Asserts that both source names are replaced by the common destination name.
+#     - Asserts the total number of replacements.
+def test_replace_in_contents_duplicate_dst_names(tmp_path, mock_logger):
+    file_path = tmp_path / "test_duplicate_dst_names.txt"
+    file_path.write_text("This is a test with gino and bogo.")
+    
+    replacements = replace_in_contents(file_path, ["gino", "bogo"], ["test", "test"], mock_logger)
+    assert file_path.read_text() == "This is a test with test and test."
+    assert replacements == 2
+    mock_logger.assert_any_call(
+        f"Updated contents of: {file_path} (2 replacements)"
+    )
+    mock_logger.assert_called_with(
+        "  Breakdown: 'gino'→'test':1, 'bogo'→'test':1"
+    )
+
+
 # Description: Ensures that `replace_in_contents` correctly identifies and
 #              skips binary files, preventing corruption, and logs the
 #              skipping action.
@@ -121,9 +167,9 @@ def test_copy_and_replace(tmp_path, mock_logger):
 #     - Calls `validate_inputs` with valid paths and names.
 #     - The test passes if no `ValueError` is raised.
 @patch("os.path.isdir")
-def test_validate_inputs_valid(mock_isdir):
+def test_validate_inputs_valid(mock_isdir, mock_logger):
     mock_isdir.return_value = True  # Mock source directory as existing
-    validate_inputs("/src", "/dst", "old", "new")  # Should not raise an error
+    validate_inputs("/src", "/dst", ["old"], ["new"], mock_logger)  # Should not raise an error
 
 
 # Description: Verifies that `validate_inputs` raises a `ValueError` with the
@@ -132,11 +178,15 @@ def test_validate_inputs_valid(mock_isdir):
 # Methodology:
 #     - Uses `pytest.raises` to assert that `ValueError` is raised when
 #       `src_dir` or `dst_dir` are empty strings.
-def test_validate_inputs_missing_fields():
-    with pytest.raises(ValueError, match="All fields are required."):
-        validate_inputs("", "/dst", "old", "new")
-    with pytest.raises(ValueError, match="All fields are required."):
-        validate_inputs("/src", "", "old", "new")
+def test_validate_inputs_missing_fields(mock_logger):
+    with pytest.raises(ValueError, match="All fields are required and must contain at least one name."):
+        validate_inputs("", "/dst", ["old"], ["new"], mock_logger)
+    with pytest.raises(ValueError, match="All fields are required and must contain at least one name."):
+        validate_inputs("/src", "", ["old"], ["new"], mock_logger)
+    with pytest.raises(ValueError, match="All fields are required and must contain at least one name."):
+        validate_inputs("/src", "/dst", [], ["new"], mock_logger)
+    with pytest.raises(ValueError, match="All fields are required and must contain at least one name."):
+        validate_inputs("/src", "/dst", ["old"], [], mock_logger)
 
 
 # Description: Confirms that `validate_inputs` raises a `ValueError` with the
@@ -146,31 +196,82 @@ def test_validate_inputs_missing_fields():
 #     - Uses `pytest.raises` to assert that `ValueError` is raised when a
 #       non-existent source directory is provided. (Note: `os.path.isdir` is
 #       not mocked here, so it behaves realistically for a non-existent path).
-def test_validate_inputs_src_dir_not_found():
+def test_validate_inputs_src_dir_not_found(mock_logger):
     with pytest.raises(
         ValueError, match="Source directory 'non_existent_dir' not found."
     ):
-        validate_inputs("non_existent_dir", "/dst", "old", "new")
+        validate_inputs("non_existent_dir", "/dst", ["old"], ["new"], mock_logger)
 
 
-# Description: Tests the specific validation rule that prevents cloning a
-#              project onto itself if both the source/destination directories
-#              and names are identical.
+# Description: Verifies that `validate_inputs` raises a `ValueError` when the
+#              number of source names does not match the number of destination names.
 # Methodology:
 #     - Mocks `os.path.isdir` to return `True` for the source directory.
-#     - Calls `validate_inputs` with identical source and destination
-#       directories and names.
-#     - Uses `pytest.raises` to assert that a `ValueError` with the message
-#       "Source and destination directories must be different if source and
-#       destination names are identical." is raised.
+#     - Calls `validate_inputs` with an unequal number of source and destination names.
+#     - Uses `pytest.raises` to assert that a `ValueError` with the correct
+#       message about name count mismatch is raised.
 @patch("os.path.isdir")
-def test_validate_inputs_identical_src_dst_with_same_name(mock_isdir):
+def test_validate_inputs_name_count_mismatch(mock_isdir, mock_logger):
     mock_isdir.return_value = True  # Mock source directory as existing
     with pytest.raises(
         ValueError,
-        match="Source and destination directories must be different when source and destination names are identical: 'same_name' -> 'same_name'",
+        match=r"Number of source names \(1\) must match number of destination names \(2\).",
     ):
-        validate_inputs("/same_dir", "/same_dir", ["same_name"], ["same_name"])
+        validate_inputs("/src", "/dst", ["old_name"], ["new_name1", "new_name2"], mock_logger)
+
+
+# Description: Checks that `validate_inputs` does not raise a `ValueError`
+#              when source and destination names are identical but the
+#              source and destination directories are different. This is a valid scenario.
+# Methodology:
+#     - Mocks `os.path.isdir` to return `True` for the source directory.
+#     - Calls `validate_inputs` with `src_dir != dst_dir` and `src_name == dst_name`.
+#     - The test passes if no `ValueError` is raised.
+@patch("os.path.isdir")
+def test_validate_inputs_identical_src_dst_names_different_dirs(mock_isdir, mock_logger):
+    mock_isdir.return_value = True  # Mock source directory as existing
+    validate_inputs("/src_dir", "/dst_dir", ["same_name"], ["same_name"], mock_logger) # Should not raise an error
+
+
+# Description: Verifies that `validate_inputs` logs a warning when a source name
+#              is identical to its destination name, but the source and destination
+#              directories are different.
+# Methodology:
+#     - Mocks `os.path.isdir` to return `True`.
+#     - Calls `validate_inputs` with `src_dir != dst_dir` and `src_name == dst_name`.
+#     - Asserts that the `mock_logger` was called with the expected warning message.
+@patch("os.path.isdir")
+def test_validate_inputs_logs_warning_for_identical_names_different_dirs(mock_isdir, mock_logger):
+    mock_isdir.return_value = True  # Mock source directory as existing
+    src_dir = "/src_dir"
+    dst_dir = "/dst_dir"
+    src_names = ["same_name"]
+    dst_names = ["same_name"]
+    
+    validate_inputs(src_dir, dst_dir, src_names, dst_names, mock_logger)
+    
+    mock_logger.assert_called_with(
+        f"Warning: Replacement pair 'same_name' -> 'same_name' is identical. "
+        "This will result in no change for this specific name.",
+        level="warning"
+    )
+
+
+# Description: Verifies that `validate_inputs` raises a `ValueError` unconditionally
+#              when the source and destination directories are the same.
+# Methodology:
+#     - Mocks `os.path.isdir` to return `True`.
+#     - Calls `validate_inputs` with `src_dir == dst_dir`.
+#     - Uses `pytest.raises` to assert that a `ValueError` with the correct
+#       message "Source and destination directories cannot be the same." is raised.
+@patch("os.path.isdir")
+def test_validate_inputs_src_dst_same_dir_unconditional_error(mock_isdir, mock_logger):
+    mock_isdir.return_value = True  # Mock source directory as existing
+    with pytest.raises(
+        ValueError,
+        match="Source and destination directories cannot be the same.",
+    ):
+        validate_inputs("/same_dir", "/same_dir", ["name1"], ["name2"], mock_logger)
 
 
 # --- Tests for `cli_logger` function ---
@@ -213,7 +314,7 @@ def test_run_cli_success(
     mock_exists.return_value = False  # Destination does not exist
     mock_copy_and_replace.return_value = (1, 1, 1)
     run_cli()
-    mock_validate_inputs.assert_called_once_with("/src", "/dst", ["old"], ["new"])
+    mock_validate_inputs.assert_called_once_with("/src", "/dst", ["old"], ["new"], cli_logger)
     mock_copy_and_replace.assert_called_once_with(
         "/src", "/dst", ["old"], ["new"], cli_logger
     )
@@ -294,7 +395,7 @@ def test_run_cli_dst_exists_overwrite(
     mock_copy_and_replace.return_value = (1, 1, 1) # Add return value for copy_and_replace
     run_cli()
     mock_rmtree.assert_called_once_with("/dst")
-    mock_validate_inputs.assert_called_once_with("/src", "/dst", ["old"], ["new"]) # Update mock call
+    mock_validate_inputs.assert_called_once_with("/src", "/dst", ["old"], ["new"], cli_logger) # Update mock call
     mock_copy_and_replace.assert_called_once_with( # Add assertion for copy_and_replace
         "/src", "/dst", ["old"], ["new"], cli_logger
     )
