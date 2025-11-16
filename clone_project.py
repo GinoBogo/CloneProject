@@ -30,31 +30,64 @@ BUTTON_WIDTH = 10
 # ==============================================================================
 
 
+def parse_name_list(names_str):
+    """Parse comma-separated names into a list, handling whitespace and empty entries."""
+    if not names_str or not names_str.strip():
+        return []
+
+    names = [name.strip() for name in names_str.split(",")]
+    # Filter out empty strings and return
+    return [name for name in names if name]
+
+
 def validate_inputs(src_dir, dst_dir, src_names, dst_names):
     """Validate all input parameters."""
-    if not all([src_dir, dst_dir, src_names, dst_names]):
-        raise ValueError("All fields are required.")
+    if not all([src_dir, dst_dir]) or not src_names or not dst_names:
+        raise ValueError("All fields are required and must contain at least one name.")
 
     if not os.path.isdir(src_dir):
         raise ValueError(f"Source directory '{src_dir}' not found.")
 
     if len(src_names) != len(dst_names):
         raise ValueError(
-            "Number of source names must match number of destination names."
+            f"Number of source names ({len(src_names)}) must match number of "
+            f"destination names ({len(dst_names)})."
         )
 
+    # Check for empty names
+    for i, (src_name, dst_name) in enumerate(zip(src_names, dst_names), 1):
+        if not src_name:
+            raise ValueError(f"Source name #{i} cannot be empty.")
+        if not dst_name:
+            raise ValueError(f"Destination name #{i} cannot be empty.")
+
+    # Check for directory conflicts
     if src_dir == dst_dir:
+        conflicting_pairs = []
         for src_name, dst_name in zip(src_names, dst_names):
             if src_name == dst_name:
-                raise ValueError(
-                    "Source and destination directories must be different if "
-                    "any source and destination names are identical."
-                )
+                conflicting_pairs.append(f"'{src_name}' -> '{dst_name}'")
+
+        if conflicting_pairs:
+            raise ValueError(
+                "Source and destination directories must be different when "
+                f"source and destination names are identical: {', '.join(conflicting_pairs)}"
+            )
 
 
 def show_help():
     """Display CLI usage information."""
-    print("Usage: python clone_project.py <src_dir> <dst_dir> <src_name> <dst_name>")
+    print(
+        "Usage: python clone_project.py <src_dir> <dst_dir> <src_name1,src_name2,...> <dst_name1,dst_name2,...>"
+    )
+    print("\nExamples:")
+    print("  python clone_project.py /old/proj /new/proj oldname newname")
+    print('  python clone_project.py /old/proj /new/proj "old1,old2" "new1,new2"')
+    print(
+        '  python clone_project.py /companyA/projX /companyB/projY "companyA,projX" "companyB,projY"'
+    )
+    print("\nNote: Number of source names must match number of destination names.")
+    print("Replacements are processed in order - be careful with overlapping patterns.")
     sys.exit(1)
 
 
@@ -82,11 +115,14 @@ def replace_in_contents(file_path, src_names, dst_names, logger):
             return 0
 
         updated_content = content
+        replacements_made = []
+
         for src_name, dst_name in zip(src_names, dst_names):
             replacements = updated_content.count(src_name)
             if replacements > 0:
                 updated_content = updated_content.replace(src_name, dst_name)
                 total_replacements += replacements
+                replacements_made.append(f"'{src_name}'→'{dst_name}':{replacements}")
 
         if total_replacements > 0:
             with open(file_path, "w", encoding="utf-8") as f:
@@ -95,6 +131,8 @@ def replace_in_contents(file_path, src_names, dst_names, logger):
             logger(
                 f"Updated contents of: {normalized_file_path} ({total_replacements} replacements)"
             )
+            if len(replacements_made) > 1:
+                logger(f"  Breakdown: {', '.join(replacements_made)}")
         return total_replacements
     except IOError:
         logger(f"Skipped file (IO Error): {file_path}", level="skipped")
@@ -106,6 +144,11 @@ def copy_and_replace(src_dir, dst_dir, src_names, dst_names, logger):
     folders_created = 0
     files_copied = 0
     words_replaced = 0
+
+    # Log replacement mapping for clarity
+    logger("Replacement mapping:")
+    for i, (src_name, dst_name) in enumerate(zip(src_names, dst_names), 1):
+        logger(f"  {i}. '{src_name}' → '{dst_name}'")
 
     for root, dirs, files in os.walk(src_dir, topdown=True):
         # Calculate the relative path from src_dir to the current root
@@ -145,7 +188,6 @@ def copy_and_replace(src_dir, dst_dir, src_names, dst_names, logger):
             new_dir_name = dir_name
             for src_name, dst_name in zip(src_names, dst_names):
                 new_dir_name = re.sub(re.escape(src_name), dst_name, new_dir_name)
-
             # Note: The actual creation of the directory in the destination is
             # handled by the new_root logic in the next iteration of os.walk
             # when this renamed directory becomes the 'root'. We don't need to
@@ -212,14 +254,14 @@ class CloneProjectGUI:
         self.dst_entry = tk.Entry(parent, width=ENTRY_WIDTH)
         self.dst_entry.grid(row=1, column=1, padx=5, pady=5, sticky="we")
 
-        # Source name
+        # Source names
         tk.Label(parent, text="Source Name(s):", width=LABEL_WIDTH, anchor="e").grid(
             row=2, column=0, sticky="e"
         )
         self.src_name_entry = tk.Entry(parent, width=ENTRY_WIDTH)
         self.src_name_entry.grid(row=2, column=1, padx=5, pady=5, sticky="we")
 
-        # Destination name
+        # Destination names
         tk.Label(
             parent, text="Destination Name(s):", width=LABEL_WIDTH, anchor="e"
         ).grid(row=3, column=0, sticky="e")
@@ -269,6 +311,7 @@ class CloneProjectGUI:
         self.log_text.tag_configure("skipped", foreground="darkgray")
         self.log_text.tag_configure("success", foreground="green")
         self.log_text.tag_configure("error", foreground="red")
+        self.log_text.tag_configure("info", foreground="blue")
 
         # Horizontal scrollbar
         x_scrollbar = tk.Scrollbar(
@@ -320,6 +363,8 @@ class CloneProjectGUI:
             self.log_text.insert(tk.END, f"{message}\n", "success")
         elif level == "error":
             self.log_text.insert(tk.END, f"{message}\n", "error")
+        elif level == "info":
+            self.log_text.insert(tk.END, f"{message}\n", "info")
         else:
             self.log_text.insert(tk.END, f"{message}\n")
         self.log_text.see(tk.END)
@@ -330,14 +375,21 @@ class CloneProjectGUI:
         try:
             src_dir = os.path.abspath(self.src_entry.get().strip())
             dst_dir = os.path.abspath(self.dst_entry.get().strip())
-            src_names = [
-                name.strip() for name in self.src_name_entry.get().strip().split(",")
-            ]
-            dst_names = [
-                name.strip() for name in self.dst_name_entry.get().strip().split(",")
-            ]
+            src_names = parse_name_list(self.src_name_entry.get().strip())
+            dst_names = parse_name_list(self.dst_name_entry.get().strip())
 
             validate_inputs(src_dir, dst_dir, src_names, dst_names)
+
+            # Log the replacement plan
+            self.gui_logger("Replacement plan:", level="info")
+            for i, (src_name, dst_name) in enumerate(zip(src_names, dst_names), 1):
+                self.gui_logger(f"  {i}. '{src_name}' → '{dst_name}'", level="info")
+
+            if len(src_names) > 1:
+                self.gui_logger(
+                    "Note: Replacements are processed in order. Be careful with overlapping patterns.",
+                    level="info",
+                )
 
             # Handle existing destination
             if os.path.exists(dst_dir):
@@ -350,7 +402,7 @@ class CloneProjectGUI:
                 shutil.rmtree(dst_dir)
 
             # Perform clone operation
-            self.gui_logger("Copying and replacing...")
+            self.gui_logger("Starting clone operation...")
             folders, files, words = copy_and_replace(
                 src_dir, dst_dir, src_names, dst_names, self.gui_logger
             )
@@ -389,14 +441,24 @@ def run_cli():
 
     src_dir = os.path.abspath(sys.argv[1])
     dst_dir = os.path.abspath(sys.argv[2])
-    src_names = [name.strip() for name in sys.argv[3].split(",")]
-    dst_names = [name.strip() for name in sys.argv[4].split(",")]
+    src_names = parse_name_list(sys.argv[3])
+    dst_names = parse_name_list(sys.argv[4])
 
     try:
         validate_inputs(src_dir, dst_dir, src_names, dst_names)
     except ValueError as e:
         cli_logger(f"Error: {e}")
         sys.exit(1)
+
+    # Log the replacement plan
+    cli_logger("Replacement plan:")
+    for i, (src_name, dst_name) in enumerate(zip(src_names, dst_names), 1):
+        cli_logger(f"  {i}. '{src_name}' → '{dst_name}'")
+
+    if len(src_names) > 1:
+        cli_logger(
+            "Note: Replacements are processed in order. Be careful with overlapping patterns."
+        )
 
     # Handle existing destination
     if os.path.exists(dst_dir):
@@ -407,7 +469,7 @@ def run_cli():
         shutil.rmtree(dst_dir)
 
     # Perform clone operation
-    cli_logger("Copying and replacing...")
+    cli_logger("Starting clone operation...")
     folders, files, words = copy_and_replace(
         src_dir, dst_dir, src_names, dst_names, cli_logger
     )

@@ -168,7 +168,7 @@ def test_validate_inputs_identical_src_dst_with_same_name(mock_isdir):
     mock_isdir.return_value = True  # Mock source directory as existing
     with pytest.raises(
         ValueError,
-        match="Source and destination directories must be different if any source and destination names are identical.",
+        match="Source and destination directories must be different when source and destination names are identical: 'same_name' -> 'same_name'",
     ):
         validate_inputs("/same_dir", "/same_dir", ["same_name"], ["same_name"])
 
@@ -218,7 +218,9 @@ def test_run_cli_success(
         "/src", "/dst", ["old"], ["new"], cli_logger
     )
     captured = capsys.readouterr()
-    assert "Copying and replacing..." in captured.out
+    assert "Replacement plan:" in captured.out
+    assert "  1. 'old' → 'new'" in captured.out
+    assert "Starting clone operation..." in captured.out
     assert "Directories created: 1" in captured.out
     assert "Files copied: 1" in captured.out
     assert "Names replaced: 1" in captured.out
@@ -297,11 +299,13 @@ def test_run_cli_dst_exists_overwrite(
         "/src", "/dst", ["old"], ["new"], cli_logger
     )
     captured = capsys.readouterr()
+    assert "Replacement plan:" in captured.out
+    assert "  1. 'old' → 'new'" in captured.out
     assert (
         "Warning: Destination directory '/dst' already exists. Overwriting..."
         in captured.out
     )
-    assert "Copying and replacing..." in captured.out
+    assert "Starting clone operation..." in captured.out
     assert "Directories created: 1" in captured.out
     assert "Files copied: 1" in captured.out
     assert "Names replaced: 1" in captured.out
@@ -323,8 +327,5 @@ def test_run_cli_dst_exists_overwrite(
 def test_show_help(mock_exit, capsys):
     show_help()
     captured = capsys.readouterr()
-    assert (
-        "Usage: python clone_project.py <src_dir> <dst_dir> <src_name> <dst_name>"
-        in captured.out
-    )
+    assert "Usage: python clone_project.py <src_dir> <dst_dir> <src_name1,src_name2,...> <dst_name1,dst_name2,...>" in captured.out
     mock_exit.assert_called_once_with(1)
