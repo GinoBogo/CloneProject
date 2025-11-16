@@ -19,6 +19,7 @@ from tkinter import filedialog, messagebox
 DEFAULT_WINDOW_SIZE = (600, 600)
 LABEL_WIDTH = 20
 ENTRY_WIDTH = 50
+BUTTON_WIDTH = 10
 
 
 # ===== CORE FUNCTIONALITY =====
@@ -160,6 +161,7 @@ class CloneProjectGUI:
             parent,
             text="Browse",
             command=lambda: self.browse_dir(self.src_entry),
+            width=BUTTON_WIDTH,
             bg="#0078D7",
             fg="#FFFFFF",
             cursor="hand2",
@@ -170,6 +172,7 @@ class CloneProjectGUI:
             parent,
             text="Browse",
             command=lambda: self.browse_dir(self.dst_entry),
+            width=BUTTON_WIDTH,
             bg="#0078D7",
             fg="#FFFFFF",
             cursor="hand2",

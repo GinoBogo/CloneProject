@@ -5,10 +5,7 @@
 # Then run tests from the project root:
 # PYTHONPATH=. ./.venv/bin/pytest
 
-import sys
 import pytest
-import os
-import shutil
 from unittest.mock import MagicMock, patch
 from clone_project import (
     replace_in_contents,
@@ -227,11 +224,11 @@ def test_run_cli_success(
 @patch("sys.exit")
 def test_run_cli_invalid_arguments(mock_exit, capsys, monkeypatch):
     mock_exit.side_effect = SystemExit(1)  # Configure mock_exit to raise SystemExit(1)
-    monkeypatch.setattr(sys, "argv", ["clone_project.py", "/src", "/dst", "old"])
+    monkeypatch.setattr("sys.argv", ["clone_project.py", "/src", "/dst", "old"])
     with pytest.raises(SystemExit) as pytest_wrapped_e:
         run_cli()
-    assert pytest_wrapped_e.type == SystemExit
-    assert pytest_wrapped_e.value.code == 1
+        assert pytest_wrapped_e.type is SystemExit
+        assert pytest_wrapped_e.value.code == 1
     mock_exit.assert_called_once_with(1)  # This should now pass
     captured = capsys.readouterr()
     assert "Error: Invalid number of arguments" in captured.out
@@ -253,7 +250,7 @@ def test_run_cli_validation_error(mock_validate_inputs, capsys):
     mock_validate_inputs.side_effect = ValueError("Test validation error.")
     with pytest.raises(SystemExit) as pytest_wrapped_e:
         run_cli()
-    assert pytest_wrapped_e.type == SystemExit
+    assert pytest_wrapped_e.type is SystemExit
     assert pytest_wrapped_e.value.code == 1
     captured = capsys.readouterr()
     assert "Error: Test validation error." in captured.out
