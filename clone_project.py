@@ -15,14 +15,22 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 
 
-# ===== CONFIGURATION & CONSTANTS =====
+# ==============================================================================
+# CONFIGURATION & CONSTANTS
+# ==============================================================================
+
+
 DEFAULT_WINDOW_SIZE = (600, 600)
 LABEL_WIDTH = 20
 ENTRY_WIDTH = 50
 BUTTON_WIDTH = 10
 
 
-# ===== CORE FUNCTIONALITY =====
+# ==============================================================================
+# CORE FUNCTIONALITY
+# ==============================================================================
+
+
 def replace_in_contents(file_path, src_name, dst_name, logger):
     """Replace text content in a file, skipping binary/unreadable files."""
     try:
@@ -74,7 +82,11 @@ def copy_and_replace(src_dir, dst_dir, src_name, dst_name, logger):
             os.makedirs(os.path.join(new_root, new_dir_name), exist_ok=True)
 
 
-# ===== VALIDATION & HELPER FUNCTIONS =====
+# ==============================================================================
+# VALIDATION & HELPER FUNCTIONS
+# ==============================================================================
+
+
 def validate_inputs(src_dir, dst_dir, src_name, dst_name):
     """Validate all input parameters."""
     if not all([src_dir, dst_dir, src_name, dst_name]):
@@ -96,7 +108,11 @@ def show_help():
     sys.exit(1)
 
 
-# ===== GUI IMPLEMENTATION =====
+# ==============================================================================
+# GUI IMPLEMENTATION
+# ==============================================================================
+
+
 class CloneProjectGUI:
     """Tkinter GUI for the clone project utility."""
 
@@ -258,7 +274,11 @@ def run_gui():
     app.run()
 
 
-# ===== CLI IMPLEMENTATION =====
+# ==============================================================================
+# CLI IMPLEMENTATION
+# ==============================================================================
+
+
 def cli_logger(message):
     """Simple logger for CLI mode."""
     print(message)
@@ -296,7 +316,11 @@ def run_cli():
     cli_logger(f"Operation completed successfully. New project location: {dst_dir}")
 
 
-# ===== MAIN EXECUTION =====
+# ==============================================================================
+# MAIN EXECUTION
+# ==============================================================================
+
+
 if __name__ == "__main__":
     if len(sys.argv) == 1:
         # No arguments - run GUI
