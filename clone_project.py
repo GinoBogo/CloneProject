@@ -40,32 +40,42 @@ def replace_in_contents(file_path, src_name, dst_name, logger):
         # Heuristic: if null byte is present, assume binary
         if b"\x00" in content_bytes:
             logger(f"Skipped file (likely binary): {file_path}")
-            return
+            return 0
 
         try:
             content = content_bytes.decode("utf-8")
         except UnicodeDecodeError:
             logger(f"Skipped file (not UTF-8 decodable): {file_path}")
-            return
+            return 0
 
+        replacements = content.count(src_name)
         updated_content = content.replace(src_name, dst_name)
 
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(updated_content)
 
-        logger(f"Updated contents of: {file_path}")
+        if replacements > 0:
+            logger(f"Updated contents of: {file_path} ({replacements} replacements)")
+        return replacements
     except IOError:  # Catch other IO errors
         logger(f"Skipped file (IO Error): {file_path}")
+        return 0
 
 
 def copy_and_replace(src_dir, dst_dir, src_name, dst_name, logger):
     """Copy directory structure while replacing names in contents and filenames."""
+    folders_created = 0
+    files_copied = 0
+    words_replaced = 0
+
     for root, dirs, files in os.walk(src_dir, topdown=True):
         # Replace directory names in path
         new_root = re.sub(
             re.escape(src_name), dst_name, str(root).replace(str(src_dir), str(dst_dir))
         )
-        os.makedirs(new_root, exist_ok=True)
+        if not os.path.exists(new_root):
+            os.makedirs(new_root, exist_ok=True)
+            folders_created += 1
 
         # Replace file names and copy files
         for file in files:
@@ -74,12 +84,19 @@ def copy_and_replace(src_dir, dst_dir, src_name, dst_name, logger):
             dst_file_path = os.path.join(new_root, new_file_name)
 
             shutil.copy2(src_file_path, dst_file_path)
-            replace_in_contents(dst_file_path, src_name, dst_name, logger)
+            files_copied += 1
+            words_replaced += replace_in_contents(
+                dst_file_path, src_name, dst_name, logger
+            )
 
         # Replace subdirectory names
-        for dir in dirs:
-            new_dir_name = re.sub(re.escape(src_name), dst_name, dir)
-            os.makedirs(os.path.join(new_root, new_dir_name), exist_ok=True)
+        for dir_name in dirs:
+            new_dir_name = re.sub(re.escape(src_name), dst_name, dir_name)
+            new_dir_path = os.path.join(new_root, new_dir_name)
+            if not os.path.exists(new_dir_path):
+                os.makedirs(new_dir_path, exist_ok=True)
+                folders_created += 1
+    return folders_created, files_copied, words_replaced
 
 
 # ==============================================================================
@@ -121,6 +138,10 @@ class CloneProjectGUI:
         self.root.title("Clone Project")
         self.root.minsize(*DEFAULT_WINDOW_SIZE)
 
+        self.folders_changed = tk.StringVar(value="Folders: 0")
+        self.files_changed = tk.StringVar(value="Files: 0")
+        self.words_changed = tk.StringVar(value="Words: 0")
+
         self.setup_ui()
 
     def setup_ui(self):
@@ -136,6 +157,9 @@ class CloneProjectGUI:
 
         # Log output
         self.setup_log_area(main_frame)
+
+        # Status bar
+        self.setup_status_bar(main_frame)
 
         # Layout configuration
         self.configure_layout(main_frame)
@@ -206,9 +230,7 @@ class CloneProjectGUI:
 
     def setup_log_area(self, parent):
         """Create logging text area with scrollbar."""
-        self.log_text = tk.Text(
-            parent, height=10, state="disabled", wrap="none"
-        )
+        self.log_text = tk.Text(parent, height=10, state="disabled", wrap="none")
         self.log_text.grid(row=5, column=0, columnspan=3, pady=(10, 0), sticky="nsew")
 
         # Horizontal scrollbar
@@ -222,6 +244,21 @@ class CloneProjectGUI:
         y_scrollbar = tk.Scrollbar(parent, command=self.log_text.yview)
         y_scrollbar.grid(row=5, column=3, sticky="ns")
         self.log_text.configure(yscrollcommand=y_scrollbar.set)
+
+    def setup_status_bar(self, parent):
+        """Create the status bar."""
+        status_bar = tk.Frame(parent, bd=1, relief=tk.SUNKEN)
+        status_bar.grid(row=7, column=0, columnspan=4, sticky="ew", pady=(5, 0))
+
+        tk.Label(status_bar, textvariable=self.folders_changed, anchor="w").pack(
+            side=tk.LEFT, padx=5
+        )
+        tk.Label(status_bar, textvariable=self.files_changed, anchor="w").pack(
+            side=tk.LEFT, padx=5
+        )
+        tk.Label(status_bar, textvariable=self.words_changed, anchor="w").pack(
+            side=tk.LEFT, padx=5
+        )
 
     def configure_layout(self, parent):
         """Configure grid weights for responsive layout."""
@@ -264,7 +301,12 @@ class CloneProjectGUI:
 
             # Perform clone operation
             self.gui_logger("Copying and replacing...")
-            copy_and_replace(src_dir, dst_dir, src_name, dst_name, self.gui_logger)
+            folders, files, words = copy_and_replace(
+                src_dir, dst_dir, src_name, dst_name, self.gui_logger
+            )
+            self.folders_changed.set(f"Folders: {folders}")
+            self.files_changed.set(f"Files: {files}")
+            self.words_changed.set(f"Words: {words}")
             self.gui_logger(
                 f"Operation completed successfully. New project location: {dst_dir}"
             )

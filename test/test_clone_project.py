@@ -35,9 +35,12 @@ def mock_logger():
 def test_replace_in_contents(tmp_path, mock_logger):
     file_path = tmp_path / "test_file.txt"
     file_path.write_text("This is an old_name project.")
-    replace_in_contents(file_path, "old_name", "new_name", mock_logger)
+    replacements = replace_in_contents(file_path, "old_name", "new_name", mock_logger)
     assert file_path.read_text() == "This is an new_name project."
-    mock_logger.assert_called_with(f"Updated contents of: {file_path}")
+    assert replacements == 1
+    mock_logger.assert_called_with(
+        f"Updated contents of: {file_path} (1 replacements)"
+    )
 
 
 # Description: Ensures that `replace_in_contents` correctly identifies and
@@ -52,9 +55,12 @@ def test_replace_in_contents_binary_file(tmp_path, mock_logger):
     # Create a dummy binary file (e.g., a few null bytes)
     binary_file_path = tmp_path / "binary.bin"
     binary_file_path.write_bytes(b"\x00\x01\x02\x03")
-    replace_in_contents(binary_file_path, "old_name", "new_name", mock_logger)
+    replacements = replace_in_contents(
+        binary_file_path, "old_name", "new_name", mock_logger
+    )
     # Content should remain unchanged
     assert binary_file_path.read_bytes() == b"\x00\x01\x02\x03"
+    assert replacements == 0
     mock_logger.assert_called_with(f"Skipped file (likely binary): {binary_file_path}")
 
 
@@ -84,7 +90,7 @@ def test_copy_and_replace(tmp_path, mock_logger):
         "Another old_project_name file."
     )
 
-    copy_and_replace(
+    folders, files, words = copy_and_replace(
         src_dir, dst_dir, "old_project_name", "new_project_name", mock_logger
     )
 
@@ -94,9 +100,14 @@ def test_copy_and_replace(tmp_path, mock_logger):
     assert (dst_dir / "new_project_name_dir" / "file2.txt").read_text() == (
         "Another new_project_name file."
     )
-    mock_logger.assert_any_call(f"Updated contents of: {dst_dir / 'file1.txt'}")
+    assert folders > 0
+    assert files == 2
+    assert words == 2
     mock_logger.assert_any_call(
-        f"Updated contents of: {dst_dir / 'new_project_name_dir' / 'file2.txt'}"
+        f"Updated contents of: {dst_dir / 'file1.txt'} (1 replacements)"
+    )
+    mock_logger.assert_any_call(
+        f"Updated contents of: {dst_dir / 'new_project_name_dir' / 'file2.txt'} (1 replacements)"
     )
 
 
@@ -201,6 +212,7 @@ def test_run_cli_success(
     mock_rmtree, mock_exists, mock_validate_inputs, mock_copy_and_replace, capsys
 ):
     mock_exists.return_value = False  # Destination does not exist
+    mock_copy_and_replace.return_value = (1, 1, 1)
     run_cli()
     mock_validate_inputs.assert_called_once_with("/src", "/dst", "old", "new")
     mock_copy_and_replace.assert_called_once_with(
