@@ -206,12 +206,22 @@ class CloneProjectGUI:
 
     def setup_log_area(self, parent):
         """Create logging text area with scrollbar."""
-        self.log_text = tk.Text(parent, height=10, state="disabled")
+        self.log_text = tk.Text(
+            parent, height=10, state="disabled", wrap="none"
+        )
         self.log_text.grid(row=5, column=0, columnspan=3, pady=(10, 0), sticky="nsew")
 
-        scrollbar = tk.Scrollbar(parent, command=self.log_text.yview)
-        scrollbar.grid(row=5, column=3, sticky="ns")
-        self.log_text.configure(yscrollcommand=scrollbar.set)
+        # Horizontal scrollbar
+        x_scrollbar = tk.Scrollbar(
+            parent, orient=tk.HORIZONTAL, command=self.log_text.xview
+        )
+        x_scrollbar.grid(row=6, column=0, columnspan=3, sticky="ew")
+        self.log_text.configure(xscrollcommand=x_scrollbar.set)
+
+        # Vertical scrollbar
+        y_scrollbar = tk.Scrollbar(parent, command=self.log_text.yview)
+        y_scrollbar.grid(row=5, column=3, sticky="ns")
+        self.log_text.configure(yscrollcommand=y_scrollbar.set)
 
     def configure_layout(self, parent):
         """Configure grid weights for responsive layout."""
