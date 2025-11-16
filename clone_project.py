@@ -19,7 +19,7 @@ from tkinter import filedialog, messagebox
 # CONSTANTS
 # ==============================================================================
 
-DEFAULT_WINDOW_SIZE = (600, 600)
+DEFAULT_WINDOW_SIZE = (600, 600) # Used as minimum window size
 LABEL_WIDTH = 20
 ENTRY_WIDTH = 50
 BUTTON_WIDTH = 10
