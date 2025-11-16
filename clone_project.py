@@ -39,13 +39,13 @@ def replace_in_contents(file_path, src_name, dst_name, logger):
 
         # Heuristic: if null byte is present, assume binary
         if b"\x00" in content_bytes:
-            logger(f"Skipped file (likely binary): {file_path}")
+            logger(f"Skipped file (likely binary): {file_path}", level="skipped")
             return 0
 
         try:
             content = content_bytes.decode("utf-8")
         except UnicodeDecodeError:
-            logger(f"Skipped file (not UTF-8 decodable): {file_path}")
+            logger(f"Skipped file (not UTF-8 decodable): {file_path}", level="skipped")
             return 0
 
         replacements = content.count(src_name)
@@ -58,7 +58,7 @@ def replace_in_contents(file_path, src_name, dst_name, logger):
             logger(f"Updated contents of: {file_path} ({replacements} replacements)")
         return replacements
     except IOError:  # Catch other IO errors
-        logger(f"Skipped file (IO Error): {file_path}")
+        logger(f"Skipped file (IO Error): {file_path}", level="skipped")
         return 0
 
 
@@ -232,6 +232,9 @@ class CloneProjectGUI:
         """Create logging text area with scrollbar."""
         self.log_text = tk.Text(parent, height=10, state="disabled", wrap="none")
         self.log_text.grid(row=5, column=0, columnspan=3, pady=(10, 0), sticky="nsew")
+        self.log_text.tag_configure("skipped", foreground="darkgray")
+        self.log_text.tag_configure("success", foreground="green")
+        self.log_text.tag_configure("error", foreground="red")
 
         # Horizontal scrollbar
         x_scrollbar = tk.Scrollbar(
@@ -241,7 +244,9 @@ class CloneProjectGUI:
         self.log_text.configure(xscrollcommand=x_scrollbar.set)
 
         # Vertical scrollbar
-        y_scrollbar = tk.Scrollbar(parent, command=self.log_text.yview)
+        y_scrollbar = tk.Scrollbar(
+            parent, orient=tk.VERTICAL, command=self.log_text.yview
+        )
         y_scrollbar.grid(row=5, column=3, sticky="ns")
         self.log_text.configure(yscrollcommand=y_scrollbar.set)
 
@@ -272,10 +277,17 @@ class CloneProjectGUI:
             entry_widget.delete(0, tk.END)
             entry_widget.insert(0, path)
 
-    def gui_logger(self, message):
+    def gui_logger(self, message, level="normal"):
         """Log messages to the GUI text area."""
         self.log_text.configure(state="normal")
-        self.log_text.insert(tk.END, f"{message}\n")
+        if level == "skipped":
+            self.log_text.insert(tk.END, f"{message}\n", "skipped")
+        elif level == "success":
+            self.log_text.insert(tk.END, f"{message}\n", "success")
+        elif level == "error":
+            self.log_text.insert(tk.END, f"{message}\n", "error")
+        else:
+            self.log_text.insert(tk.END, f"{message}\n")
         self.log_text.see(tk.END)
         self.log_text.configure(state="disabled")
 
@@ -308,11 +320,13 @@ class CloneProjectGUI:
             self.files_changed.set(f"Files: {files}")
             self.words_changed.set(f"Words: {words}")
             self.gui_logger(
-                f"Operation completed successfully. New project location: {dst_dir}"
+                f"Operation completed successfully. New project location: {dst_dir}",
+                level="success",
             )
             messagebox.showinfo("Success", "Project cloned successfully.")
 
         except Exception as e:
+            self.gui_logger(f"Error: {e}", level="error")
             messagebox.showerror("Error", str(e))
 
     def run(self):
