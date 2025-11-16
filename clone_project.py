@@ -30,19 +30,26 @@ BUTTON_WIDTH = 10
 # ==============================================================================
 
 
-def validate_inputs(src_dir, dst_dir, src_name, dst_name):
+def validate_inputs(src_dir, dst_dir, src_names, dst_names):
     """Validate all input parameters."""
-    if not all([src_dir, dst_dir, src_name, dst_name]):
+    if not all([src_dir, dst_dir, src_names, dst_names]):
         raise ValueError("All fields are required.")
 
     if not os.path.isdir(src_dir):
         raise ValueError(f"Source directory '{src_dir}' not found.")
 
-    if src_name == dst_name and src_dir == dst_dir:
+    if len(src_names) != len(dst_names):
         raise ValueError(
-            "Source and destination directories must be different if "
-            "source and destination names are identical."
+            "Number of source names must match number of destination names."
         )
+
+    if src_dir == dst_dir:
+        for src_name, dst_name in zip(src_names, dst_names):
+            if src_name == dst_name:
+                raise ValueError(
+                    "Source and destination directories must be different if "
+                    "any source and destination names are identical."
+                )
 
 
 def show_help():
@@ -56,8 +63,9 @@ def show_help():
 # ==============================================================================
 
 
-def replace_in_contents(file_path, src_name, dst_name, logger):
+def replace_in_contents(file_path, src_names, dst_names, logger):
     """Replace text content in a file, skipping binary/unreadable files."""
+    total_replacements = 0
     try:
         with open(file_path, "rb") as f:  # Open in binary mode
             content_bytes = f.read()
@@ -73,31 +81,46 @@ def replace_in_contents(file_path, src_name, dst_name, logger):
             logger(f"Skipped file (not UTF-8 decodable): {file_path}", level="skipped")
             return 0
 
-        replacements = content.count(src_name)
-        updated_content = content.replace(src_name, dst_name)
+        updated_content = content
+        for src_name, dst_name in zip(src_names, dst_names):
+            replacements = updated_content.count(src_name)
+            if replacements > 0:
+                updated_content = updated_content.replace(src_name, dst_name)
+                total_replacements += replacements
 
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(updated_content)
-
-        if replacements > 0:
-            logger(f"Updated contents of: {file_path} ({replacements} replacements)")
-        return replacements
+        if total_replacements > 0:
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(updated_content)
+            normalized_file_path = os.path.normpath(file_path)
+            logger(
+                f"Updated contents of: {normalized_file_path} ({total_replacements} replacements)"
+            )
+        return total_replacements
     except IOError:
         logger(f"Skipped file (IO Error): {file_path}", level="skipped")
         return 0
 
 
-def copy_and_replace(src_dir, dst_dir, src_name, dst_name, logger):
+def copy_and_replace(src_dir, dst_dir, src_names, dst_names, logger):
     """Copy directory structure while replacing names in contents and filenames."""
     folders_created = 0
     files_copied = 0
     words_replaced = 0
 
     for root, dirs, files in os.walk(src_dir, topdown=True):
-        # Replace directory names in path
-        new_root = re.sub(
-            re.escape(src_name), dst_name, str(root).replace(str(src_dir), str(dst_dir))
-        )
+        # Calculate the relative path from src_dir to the current root
+        rel_path = os.path.relpath(root, src_dir)
+
+        # Apply all name replacements to the relative path
+        processed_rel_path = rel_path
+        for src_name, dst_name in zip(src_names, dst_names):
+            processed_rel_path = re.sub(
+                re.escape(src_name), dst_name, processed_rel_path
+            )
+
+        # Construct the new root path in the destination
+        new_root = os.path.join(dst_dir, processed_rel_path)
+
         if not os.path.exists(new_root):
             os.makedirs(new_root, exist_ok=True)
             folders_created += 1
@@ -105,22 +128,28 @@ def copy_and_replace(src_dir, dst_dir, src_name, dst_name, logger):
         # Replace file names and copy files
         for file in files:
             src_file_path = os.path.join(root, file)
-            new_file_name = re.sub(re.escape(src_name), dst_name, file)
+            new_file_name = file
+            for src_name, dst_name in zip(src_names, dst_names):
+                new_file_name = re.sub(re.escape(src_name), dst_name, new_file_name)
             dst_file_path = os.path.join(new_root, new_file_name)
 
             shutil.copy2(src_file_path, dst_file_path)
             files_copied += 1
             words_replaced += replace_in_contents(
-                dst_file_path, src_name, dst_name, logger
+                dst_file_path, src_names, dst_names, logger
             )
 
-        # Replace subdirectory names
-        for dir_name in dirs:
-            new_dir_name = re.sub(re.escape(src_name), dst_name, dir_name)
-            new_dir_path = os.path.join(new_root, new_dir_name)
-            if not os.path.exists(new_dir_path):
-                os.makedirs(new_dir_path, exist_ok=True)
-                folders_created += 1
+        # Replace subdirectory names in the 'dirs' list for os.walk to traverse correctly
+        for i in range(len(dirs)):
+            dir_name = dirs[i]
+            new_dir_name = dir_name
+            for src_name, dst_name in zip(src_names, dst_names):
+                new_dir_name = re.sub(re.escape(src_name), dst_name, new_dir_name)
+
+            # Note: The actual creation of the directory in the destination is
+            # handled by the new_root logic in the next iteration of os.walk
+            # when this renamed directory becomes the 'root'. We don't need to
+            # explicitly create it here.
 
     return folders_created, files_copied, words_replaced
 
@@ -149,9 +178,9 @@ class CloneProjectGUI:
         self.root.minsize(*DEFAULT_WINDOW_SIZE)
 
         # Initialize statistics variables
-        self.folders_changed = tk.StringVar(value="Folders: 0")
+        self.directories_created = tk.StringVar(value="Directories: 0")
         self.files_changed = tk.StringVar(value="Files: 0")
-        self.words_changed = tk.StringVar(value="Words: 0")
+        self.names_replaced = tk.StringVar(value="Names: 0")
 
         self.setup_ui()
 
@@ -184,16 +213,16 @@ class CloneProjectGUI:
         self.dst_entry.grid(row=1, column=1, padx=5, pady=5, sticky="we")
 
         # Source name
-        tk.Label(parent, text="Source Name:", width=LABEL_WIDTH, anchor="e").grid(
+        tk.Label(parent, text="Source Name(s):", width=LABEL_WIDTH, anchor="e").grid(
             row=2, column=0, sticky="e"
         )
         self.src_name_entry = tk.Entry(parent, width=ENTRY_WIDTH)
         self.src_name_entry.grid(row=2, column=1, padx=5, pady=5, sticky="we")
 
         # Destination name
-        tk.Label(parent, text="Destination Name:", width=LABEL_WIDTH, anchor="e").grid(
-            row=3, column=0, sticky="e"
-        )
+        tk.Label(
+            parent, text="Destination Name(s):", width=LABEL_WIDTH, anchor="e"
+        ).grid(row=3, column=0, sticky="e")
         self.dst_name_entry = tk.Entry(parent, width=ENTRY_WIDTH)
         self.dst_name_entry.grid(row=3, column=1, padx=5, pady=5, sticky="we")
 
@@ -260,13 +289,13 @@ class CloneProjectGUI:
         status_bar = tk.Frame(parent, bd=1, relief=tk.SUNKEN)
         status_bar.grid(row=7, column=0, columnspan=4, sticky="ew", pady=(5, 0))
 
-        tk.Label(status_bar, textvariable=self.folders_changed, anchor="w").pack(
+        tk.Label(status_bar, textvariable=self.directories_created, anchor="w").pack(
             side=tk.LEFT, padx=5
         )
         tk.Label(status_bar, textvariable=self.files_changed, anchor="w").pack(
             side=tk.LEFT, padx=5
         )
-        tk.Label(status_bar, textvariable=self.words_changed, anchor="w").pack(
+        tk.Label(status_bar, textvariable=self.names_replaced, anchor="w").pack(
             side=tk.LEFT, padx=5
         )
 
@@ -301,10 +330,14 @@ class CloneProjectGUI:
         try:
             src_dir = os.path.abspath(self.src_entry.get().strip())
             dst_dir = os.path.abspath(self.dst_entry.get().strip())
-            src_name = self.src_name_entry.get().strip()
-            dst_name = self.dst_name_entry.get().strip()
+            src_names = [
+                name.strip() for name in self.src_name_entry.get().strip().split(",")
+            ]
+            dst_names = [
+                name.strip() for name in self.dst_name_entry.get().strip().split(",")
+            ]
 
-            validate_inputs(src_dir, dst_dir, src_name, dst_name)
+            validate_inputs(src_dir, dst_dir, src_names, dst_names)
 
             # Handle existing destination
             if os.path.exists(dst_dir):
@@ -319,13 +352,13 @@ class CloneProjectGUI:
             # Perform clone operation
             self.gui_logger("Copying and replacing...")
             folders, files, words = copy_and_replace(
-                src_dir, dst_dir, src_name, dst_name, self.gui_logger
+                src_dir, dst_dir, src_names, dst_names, self.gui_logger
             )
 
             # Update statistics
-            self.folders_changed.set(f"Folders: {folders}")
+            self.directories_created.set(f"Directories: {folders}")
             self.files_changed.set(f"Files: {files}")
-            self.words_changed.set(f"Words: {words}")
+            self.names_replaced.set(f"Names: {words}")
 
             self.gui_logger(
                 f"Operation completed successfully. New project location: {dst_dir}",
@@ -356,11 +389,11 @@ def run_cli():
 
     src_dir = os.path.abspath(sys.argv[1])
     dst_dir = os.path.abspath(sys.argv[2])
-    src_name = sys.argv[3]
-    dst_name = sys.argv[4]
+    src_names = [name.strip() for name in sys.argv[3].split(",")]
+    dst_names = [name.strip() for name in sys.argv[4].split(",")]
 
     try:
-        validate_inputs(src_dir, dst_dir, src_name, dst_name)
+        validate_inputs(src_dir, dst_dir, src_names, dst_names)
     except ValueError as e:
         cli_logger(f"Error: {e}")
         sys.exit(1)
@@ -376,11 +409,11 @@ def run_cli():
     # Perform clone operation
     cli_logger("Copying and replacing...")
     folders, files, words = copy_and_replace(
-        src_dir, dst_dir, src_name, dst_name, cli_logger
+        src_dir, dst_dir, src_names, dst_names, cli_logger
     )
-    cli_logger(f"Folders created: {folders}")
+    cli_logger(f"Directories created: {folders}")
     cli_logger(f"Files copied: {files}")
-    cli_logger(f"Words replaced: {words}")
+    cli_logger(f"Names replaced: {words}")
     cli_logger(f"Operation completed successfully. New project location: {dst_dir}")
 
 

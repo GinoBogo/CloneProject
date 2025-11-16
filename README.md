@@ -1,7 +1,7 @@
 # CloneProject
 Utility to clone a project via CLI or Tkinter GUI.
 
-CloneProject takes an existing codebase and produces a fully renamed copy. You provide the source directory/name and the destination directory/name either via command-line arguments or through the Tkinter GUI. The script copies every file and folder, renaming paths that contain the original project name and replacing occurrences of that name inside text files. This makes it easy to bootstrap a new project from a template without manually updating identifiers. Personally, I used this script to clone Microchip MPLAB X IDE projects, which are notoriously difficult to copy without breaking.
+CloneProject takes an existing codebase and produces a fully renamed copy. You provide the source directory/name(s) and the destination directory/name(s) either via command-line arguments or through the Tkinter GUI. The script copies every file and folder, renaming paths that contain the original project name(s) and replacing occurrences of that name(s) inside text files. This makes it easy to bootstrap a new project from a template without manually updating identifiers. Personally, I used this script to clone Microchip MPLAB X IDE projects, which are notoriously difficult to copy without breaking.
 
 
 ## Features
@@ -11,6 +11,7 @@ CloneProject takes an existing codebase and produces a fully renamed copy. You p
     *   Directory names
     *   File names
     *   Contents of text files
+*   **Multiple Name Replacement:** Supports replacing multiple distinct source names with corresponding destination names by providing comma-separated lists for both.
 *   **Binary File Handling:** Automatically skips binary files during content replacement to prevent corruption.
 *   **Destination Overwrite:** Provides a warning (GUI) or proceeds with overwriting (CLI) if the destination directory already exists.
 
@@ -29,8 +30,8 @@ python clone_project.py
 The GUI will allow you to:
 *   Browse and select the **Source Directory** (the project you want to clone).
 *   Browse and select the **Destination Directory** (where the new, cloned project will be created).
-*   Enter the **Source Name** (the string to be replaced, typically the original project's name).
-*   Enter the **Destination Name** (the new string to replace the source name with).
+*   Enter the **Source Name(s)** (the string(s) to be replaced, typically the original project's name(s). For multiple replacements, provide a comma-separated list, e.g., "OldName1,OldName2").
+*   Enter the **Destination Name(s)** (the new string(s) to replace the source name(s) with. For multiple replacements, provide a comma-separated list corresponding to the source names, e.g., "NewName1,NewName2").
 *   Click "Clone Project" to start the process.
 
 ### CLI Mode
@@ -45,16 +46,24 @@ python clone_project.py <src_dir> <dst_dir> <src_name> <dst_name>
 
 *   `<src_dir>`: The absolute or relative path to the source project directory you wish to clone.
 *   `<dst_dir>`: The absolute or relative path where the new, cloned project will be created.
-*   `<src_name>`: The exact string (e.g., "MyOldProject") that exists in directory names, file names, or file contents within `<src_dir>` that you want to replace.
-*   `<dst_name>`: The exact string (e.g., "MyNewProject") that will replace all occurrences of `<src_name>`.
+*   `<src_name>`: The exact string(s) (e.g., "MyOldProject" or "OldName1,OldName2") that exist in directory names, file names, or file contents within `<src_dir>` that you want to replace. For multiple replacements, provide a comma-separated list.
+*   `<dst_name>`: The exact string(s) (e.g., "MyNewProject" or "NewName1,NewName2") that will replace all occurrences of `<src_name>`. For multiple replacements, provide a comma-separated list corresponding to the `<src_name>` list.
 
 **Example:**
 
-To clone a project located at `/home/user/projects/OldProject` to `/home/user/projects/NewProject`, replacing all instances of "OldProject" with "NewProject":
+To clone a project from `./my_old_project` to `./my_new_project`, replacing "MyOldName" with "MyNewName" and "LegacyFeature" with "ModernFeature":
 
 ```bash
-python clone_project.py /home/user/projects/OldProject /home/user/projects/NewProject OldProject NewProject
+python clone_project.py \
+  ./my_old_project \
+  ./my_new_project \
+  "MyOldName,LegacyFeature" \
+  "MyNewName,ModernFeature"
 ```
+*   `./my_old_project`: Source directory.
+*   `./my_new_project`: Destination directory.
+*   `"MyOldName,LegacyFeature"`: Comma-separated list of source names to replace.
+*   `"MyNewName,ModernFeature"`: Comma-separated list of destination names, corresponding to the source names.
 
 ## How it Works
 

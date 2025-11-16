@@ -35,7 +35,7 @@ def mock_logger():
 def test_replace_in_contents(tmp_path, mock_logger):
     file_path = tmp_path / "test_file.txt"
     file_path.write_text("This is an old_name project.")
-    replacements = replace_in_contents(file_path, "old_name", "new_name", mock_logger)
+    replacements = replace_in_contents(file_path, ["old_name"], ["new_name"], mock_logger)
     assert file_path.read_text() == "This is an new_name project."
     assert replacements == 1
     mock_logger.assert_called_with(
@@ -61,7 +61,7 @@ def test_replace_in_contents_binary_file(tmp_path, mock_logger):
     # Content should remain unchanged
     assert binary_file_path.read_bytes() == b"\x00\x01\x02\x03"
     assert replacements == 0
-    mock_logger.assert_called_with(f"Skipped file (likely binary): {binary_file_path}")
+    mock_logger.assert_called_with(f"Skipped file (likely binary): {binary_file_path}", level="skipped")
 
 
 # --- Tests for `copy_and_replace` function ---
@@ -91,7 +91,7 @@ def test_copy_and_replace(tmp_path, mock_logger):
     )
 
     folders, files, words = copy_and_replace(
-        src_dir, dst_dir, "old_project_name", "new_project_name", mock_logger
+        src_dir, dst_dir, ["old_project_name"], ["new_project_name"], mock_logger
     )
 
     assert dst_dir.exists()
@@ -104,10 +104,10 @@ def test_copy_and_replace(tmp_path, mock_logger):
     assert files == 2
     assert words == 2
     mock_logger.assert_any_call(
-        f"Updated contents of: {dst_dir / 'file1.txt'} (1 replacements)"
+        f"Updated contents of: {(dst_dir / 'file1.txt').resolve()} (1 replacements)"
     )
     mock_logger.assert_any_call(
-        f"Updated contents of: {dst_dir / 'new_project_name_dir' / 'file2.txt'} (1 replacements)"
+        f"Updated contents of: {(dst_dir / 'new_project_name_dir' / 'file2.txt').resolve()} (1 replacements)"
     )
 
 
@@ -168,10 +168,9 @@ def test_validate_inputs_identical_src_dst_with_same_name(mock_isdir):
     mock_isdir.return_value = True  # Mock source directory as existing
     with pytest.raises(
         ValueError,
-        match="Source and destination directories must be different if "
-        "source and destination names are identical.",
+        match="Source and destination directories must be different if any source and destination names are identical.",
     ):
-        validate_inputs("/same_dir", "/same_dir", "same_name", "same_name")
+        validate_inputs("/same_dir", "/same_dir", ["same_name"], ["same_name"])
 
 
 # --- Tests for `cli_logger` function ---
@@ -214,12 +213,15 @@ def test_run_cli_success(
     mock_exists.return_value = False  # Destination does not exist
     mock_copy_and_replace.return_value = (1, 1, 1)
     run_cli()
-    mock_validate_inputs.assert_called_once_with("/src", "/dst", "old", "new")
+    mock_validate_inputs.assert_called_once_with("/src", "/dst", ["old"], ["new"])
     mock_copy_and_replace.assert_called_once_with(
-        "/src", "/dst", "old", "new", cli_logger
+        "/src", "/dst", ["old"], ["new"], cli_logger
     )
     captured = capsys.readouterr()
     assert "Copying and replacing..." in captured.out
+    assert "Directories created: 1" in captured.out
+    assert "Files copied: 1" in captured.out
+    assert "Names replaced: 1" in captured.out
     assert "Operation completed successfully." in captured.out
 
 
@@ -287,13 +289,23 @@ def test_run_cli_dst_exists_overwrite(
     mock_rmtree, mock_exists, mock_validate_inputs, mock_copy_and_replace, capsys
 ):
     mock_exists.return_value = True  # Destination exists
+    mock_copy_and_replace.return_value = (1, 1, 1) # Add return value for copy_and_replace
     run_cli()
     mock_rmtree.assert_called_once_with("/dst")
+    mock_validate_inputs.assert_called_once_with("/src", "/dst", ["old"], ["new"]) # Update mock call
+    mock_copy_and_replace.assert_called_once_with( # Add assertion for copy_and_replace
+        "/src", "/dst", ["old"], ["new"], cli_logger
+    )
     captured = capsys.readouterr()
     assert (
         "Warning: Destination directory '/dst' already exists. Overwriting..."
         in captured.out
     )
+    assert "Copying and replacing..." in captured.out
+    assert "Directories created: 1" in captured.out
+    assert "Files copied: 1" in captured.out
+    assert "Names replaced: 1" in captured.out
+    assert "Operation completed successfully." in captured.out
 
 
 # --- Tests for `show_help` function ---
