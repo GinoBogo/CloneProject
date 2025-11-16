@@ -8,22 +8,47 @@ Author: Gino Bogo
 """
 
 import os
-import shutil
 import re
+import shutil
 import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox
 
 
 # ==============================================================================
-# CONFIGURATION & CONSTANTS
+# CONSTANTS
 # ==============================================================================
-
 
 DEFAULT_WINDOW_SIZE = (600, 600)
 LABEL_WIDTH = 20
 ENTRY_WIDTH = 50
 BUTTON_WIDTH = 10
+
+
+# ==============================================================================
+# VALIDATION & HELPER FUNCTIONS
+# ==============================================================================
+
+
+def validate_inputs(src_dir, dst_dir, src_name, dst_name):
+    """Validate all input parameters."""
+    if not all([src_dir, dst_dir, src_name, dst_name]):
+        raise ValueError("All fields are required.")
+
+    if not os.path.isdir(src_dir):
+        raise ValueError(f"Source directory '{src_dir}' not found.")
+
+    if src_name == dst_name and src_dir == dst_dir:
+        raise ValueError(
+            "Source and destination directories must be different if "
+            "source and destination names are identical."
+        )
+
+
+def show_help():
+    """Display CLI usage information."""
+    print("Usage: python clone_project.py <src_dir> <dst_dir> <src_name> <dst_name>")
+    sys.exit(1)
 
 
 # ==============================================================================
@@ -57,7 +82,7 @@ def replace_in_contents(file_path, src_name, dst_name, logger):
         if replacements > 0:
             logger(f"Updated contents of: {file_path} ({replacements} replacements)")
         return replacements
-    except IOError:  # Catch other IO errors
+    except IOError:
         logger(f"Skipped file (IO Error): {file_path}", level="skipped")
         return 0
 
@@ -96,33 +121,18 @@ def copy_and_replace(src_dir, dst_dir, src_name, dst_name, logger):
             if not os.path.exists(new_dir_path):
                 os.makedirs(new_dir_path, exist_ok=True)
                 folders_created += 1
+
     return folders_created, files_copied, words_replaced
 
 
 # ==============================================================================
-# VALIDATION & HELPER FUNCTIONS
+# LOGGERS
 # ==============================================================================
 
 
-def validate_inputs(src_dir, dst_dir, src_name, dst_name):
-    """Validate all input parameters."""
-    if not all([src_dir, dst_dir, src_name, dst_name]):
-        raise ValueError("All fields are required.")
-
-    if not os.path.isdir(src_dir):
-        raise ValueError(f"Source directory '{src_dir}' not found.")
-
-    if src_name == dst_name and src_dir == dst_dir:
-        raise ValueError(
-            "Source and destination directories must be different if "
-            "source and destination names are identical."
-        )
-
-
-def show_help():
-    """Display CLI usage information."""
-    print("Usage: python clone_project.py <src_dir> <dst_dir> <src_name> <dst_name>")
-    sys.exit(1)
+def cli_logger(message, level="normal"):
+    """Simple logger for CLI mode."""
+    print(message)
 
 
 # ==============================================================================
@@ -138,6 +148,7 @@ class CloneProjectGUI:
         self.root.title("Clone Project")
         self.root.minsize(*DEFAULT_WINDOW_SIZE)
 
+        # Initialize statistics variables
         self.folders_changed = tk.StringVar(value="Folders: 0")
         self.files_changed = tk.StringVar(value="Files: 0")
         self.words_changed = tk.StringVar(value="Words: 0")
@@ -149,19 +160,11 @@ class CloneProjectGUI:
         main_frame = tk.Frame(self.root, padx=10, pady=10)
         main_frame.pack(fill=tk.BOTH, expand=True)
 
-        # Input fields
+        # Setup all UI components
         self.setup_input_fields(main_frame)
-
-        # Control buttons
         self.setup_buttons(main_frame)
-
-        # Log output
         self.setup_log_area(main_frame)
-
-        # Status bar
         self.setup_status_bar(main_frame)
-
-        # Layout configuration
         self.configure_layout(main_frame)
 
     def setup_input_fields(self, parent):
@@ -232,6 +235,8 @@ class CloneProjectGUI:
         """Create logging text area with scrollbar."""
         self.log_text = tk.Text(parent, height=10, state="disabled", wrap="none")
         self.log_text.grid(row=5, column=0, columnspan=3, pady=(10, 0), sticky="nsew")
+
+        # Configure text tags for different message levels
         self.log_text.tag_configure("skipped", foreground="darkgray")
         self.log_text.tag_configure("success", foreground="green")
         self.log_text.tag_configure("error", foreground="red")
@@ -316,9 +321,12 @@ class CloneProjectGUI:
             folders, files, words = copy_and_replace(
                 src_dir, dst_dir, src_name, dst_name, self.gui_logger
             )
+
+            # Update statistics
             self.folders_changed.set(f"Folders: {folders}")
             self.files_changed.set(f"Files: {files}")
             self.words_changed.set(f"Words: {words}")
+
             self.gui_logger(
                 f"Operation completed successfully. New project location: {dst_dir}",
                 level="success",
@@ -334,20 +342,9 @@ class CloneProjectGUI:
         self.root.mainloop()
 
 
-def run_gui():
-    """Launch the GUI interface."""
-    app = CloneProjectGUI()
-    app.run()
-
-
 # ==============================================================================
 # CLI IMPLEMENTATION
 # ==============================================================================
-
-
-def cli_logger(message):
-    """Simple logger for CLI mode."""
-    print(message)
 
 
 def run_cli():
@@ -356,12 +353,12 @@ def run_cli():
         cli_logger("Error: Invalid number of arguments")
         show_help()
         sys.exit(1)
-        return  # Ensure function exits after sys.exit(1)
 
     src_dir = os.path.abspath(sys.argv[1])
     dst_dir = os.path.abspath(sys.argv[2])
     src_name = sys.argv[3]
     dst_name = sys.argv[4]
+
     try:
         validate_inputs(src_dir, dst_dir, src_name, dst_name)
     except ValueError as e:
@@ -378,14 +375,24 @@ def run_cli():
 
     # Perform clone operation
     cli_logger("Copying and replacing...")
-    copy_and_replace(src_dir, dst_dir, src_name, dst_name, cli_logger)
+    folders, files, words = copy_and_replace(
+        src_dir, dst_dir, src_name, dst_name, cli_logger
+    )
+    cli_logger(f"Folders created: {folders}")
+    cli_logger(f"Files copied: {files}")
+    cli_logger(f"Words replaced: {words}")
     cli_logger(f"Operation completed successfully. New project location: {dst_dir}")
+
+
+def run_gui():
+    """Launch the GUI interface."""
+    app = CloneProjectGUI()
+    app.run()
 
 
 # ==============================================================================
 # MAIN EXECUTION
 # ==============================================================================
-
 
 if __name__ == "__main__":
     if len(sys.argv) == 1:
