@@ -12,7 +12,7 @@ import re
 import shutil
 import sys
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, ttk
 
 
 # ==============================================================================
@@ -207,6 +207,13 @@ class CloneProjectGUI:
         self.root.title("Clone Project")
         self.root.minsize(*DEFAULT_WINDOW_SIZE)
 
+        # Configure ttk style
+        self.style = ttk.Style()
+        self.style.theme_use("clam")
+        self.style.configure("Status.TFrame", relief="sunken")
+        self.style.configure("Browse.TButton", background="#0078D7")
+        self.style.map("Browse.TButton", foreground=[("!disabled", "white")])
+
         # Initialize statistics variables
         self.directories_created = tk.StringVar(value="Directories: 0")
         self.files_changed = tk.StringVar(value="Files: 0")
@@ -216,7 +223,7 @@ class CloneProjectGUI:
 
     def setup_ui(self):
         """Initialize all GUI components."""
-        main_frame = tk.Frame(self.root, padx=10, pady=10)
+        main_frame = ttk.Frame(self.root, padding=(10, 10))
         main_frame.pack(fill=tk.BOTH, expand=True)
 
         # Setup all UI components
@@ -229,65 +236,58 @@ class CloneProjectGUI:
     def setup_input_fields(self, parent):
         """Create and arrange input fields with labels."""
         # Source directory
-        tk.Label(parent, text="Source Directory:", width=LABEL_WIDTH, anchor="e").grid(
+        ttk.Label(parent, text="Source Directory:", width=LABEL_WIDTH, anchor="e").grid(
             row=0, column=0, sticky="e"
         )
-        self.src_entry = tk.Entry(parent, width=ENTRY_WIDTH)
+        self.src_entry = ttk.Entry(parent, width=ENTRY_WIDTH)
         self.src_entry.grid(row=0, column=1, padx=5, pady=5, sticky="we")
 
         # Destination directory
-        tk.Label(
+        ttk.Label(
             parent, text="Destination Directory:", width=LABEL_WIDTH, anchor="e"
         ).grid(row=1, column=0, sticky="e")
-        self.dst_entry = tk.Entry(parent, width=ENTRY_WIDTH)
+        self.dst_entry = ttk.Entry(parent, width=ENTRY_WIDTH)
         self.dst_entry.grid(row=1, column=1, padx=5, pady=5, sticky="we")
 
         # Source names
-        tk.Label(parent, text="Source Name(s):", width=LABEL_WIDTH, anchor="e").grid(
+        ttk.Label(parent, text="Source Name(s):", width=LABEL_WIDTH, anchor="e").grid(
             row=2, column=0, sticky="e"
         )
-        self.src_name_entry = tk.Entry(parent, width=ENTRY_WIDTH)
+        self.src_name_entry = ttk.Entry(parent, width=ENTRY_WIDTH)
         self.src_name_entry.grid(row=2, column=1, padx=5, pady=5, sticky="we")
 
         # Destination names
-        tk.Label(
+        ttk.Label(
             parent, text="Destination Name(s):", width=LABEL_WIDTH, anchor="e"
         ).grid(row=3, column=0, sticky="e")
-        self.dst_name_entry = tk.Entry(parent, width=ENTRY_WIDTH)
+        self.dst_name_entry = ttk.Entry(parent, width=ENTRY_WIDTH)
         self.dst_name_entry.grid(row=3, column=1, padx=5, pady=5, sticky="we")
 
     def setup_buttons(self, parent):
         """Create control buttons."""
         # Browse Source button
-        tk.Button(
+        ttk.Button(
             parent,
             text="Browse",
             command=lambda: self.browse_dir(self.src_entry),
             width=BUTTON_WIDTH,
-            bg="#0078D7",
-            fg="#FFFFFF",
-            cursor="hand2",
+            style="Browse.TButton",
         ).grid(row=0, column=2, padx=5, pady=5)
 
         # Browse Destination button
-        tk.Button(
+        ttk.Button(
             parent,
             text="Browse",
             command=lambda: self.browse_dir(self.dst_entry),
             width=BUTTON_WIDTH,
-            bg="#0078D7",
-            fg="#FFFFFF",
-            cursor="hand2",
+            style="Browse.TButton",
         ).grid(row=1, column=2, padx=5, pady=5)
 
         # Clone Project button
-        tk.Button(
+        ttk.Button(
             parent,
             text="Clone Project",
             command=self.run_clone,
-            bg="#FFFF00",
-            fg="#000000",
-            cursor="hand2",
         ).grid(row=4, column=0, columnspan=3, pady=(10, 5), sticky="we")
 
     def setup_log_area(self, parent):
@@ -303,14 +303,14 @@ class CloneProjectGUI:
         self.log_text.tag_configure("skipped", foreground="darkgray")
 
         # Horizontal scrollbar
-        x_scrollbar = tk.Scrollbar(
+        x_scrollbar = ttk.Scrollbar(
             parent, orient=tk.HORIZONTAL, command=self.log_text.xview
         )
         x_scrollbar.grid(row=6, column=0, columnspan=3, sticky="ew")
         self.log_text.configure(xscrollcommand=x_scrollbar.set)
 
         # Vertical scrollbar
-        y_scrollbar = tk.Scrollbar(
+        y_scrollbar = ttk.Scrollbar(
             parent, orient=tk.VERTICAL, command=self.log_text.yview
         )
         y_scrollbar.grid(row=5, column=3, sticky="ns")
@@ -318,16 +318,16 @@ class CloneProjectGUI:
 
     def setup_status_bar(self, parent):
         """Create the status bar."""
-        status_bar = tk.Frame(parent, bd=1, relief=tk.SUNKEN)
+        status_bar = ttk.Frame(parent, style="Status.TFrame")
         status_bar.grid(row=7, column=0, columnspan=4, sticky="ew", pady=(5, 0))
 
-        tk.Label(status_bar, textvariable=self.directories_created, anchor="w").pack(
+        ttk.Label(status_bar, textvariable=self.directories_created, anchor="w").pack(
             side=tk.LEFT, padx=5
         )
-        tk.Label(status_bar, textvariable=self.files_changed, anchor="w").pack(
+        ttk.Label(status_bar, textvariable=self.files_changed, anchor="w").pack(
             side=tk.LEFT, padx=5
         )
-        tk.Label(status_bar, textvariable=self.names_replaced, anchor="w").pack(
+        ttk.Label(status_bar, textvariable=self.names_replaced, anchor="w").pack(
             side=tk.LEFT, padx=5
         )
 

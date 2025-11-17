@@ -251,7 +251,7 @@ def test_validate_inputs_logs_warning_for_identical_names_different_dirs(mock_is
     validate_inputs(src_dir, dst_dir, src_names, dst_names, mock_logger)
     
     mock_logger.assert_called_with(
-        f"Warning: Replacement pair 'same_name' -> 'same_name' is identical. "
+        "Warning: Replacement pair 'same_name' -> 'same_name' is identical. "
         "This will result in no change for this specific name.",
         level="warning"
     )
