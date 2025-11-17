@@ -19,7 +19,7 @@ from tkinter import filedialog, messagebox, ttk
 # CONSTANTS
 # ==============================================================================
 
-DEFAULT_WINDOW_SIZE = (600, 600) # Used as minimum window size
+DEFAULT_WINDOW_SIZE = (600, 600)  # Used as minimum window size
 LABEL_WIDTH = 20
 ENTRY_WIDTH = 50
 BUTTON_WIDTH = 10
@@ -210,9 +210,19 @@ class CloneProjectGUI:
         # Configure ttk style
         self.style = ttk.Style()
         self.style.theme_use("clam")
-        self.style.configure("Status.TFrame", relief="sunken")
-        self.style.configure("Browse.TButton", background="#0078D7")
-        self.style.map("Browse.TButton", foreground=[("!disabled", "white")])
+        self.style.configure("Status.TFrame", relief="flat")
+        self.style.configure("Browse.TButton")
+        self.style.configure("Clone.TButton")
+        self.style.map(
+            "Browse.TButton",
+            foreground=[("!disabled", "#FFFFFF")],
+            background=[("active", "#0056B3"), ("!active", "#004085")],
+        )
+        self.style.map(
+            "Clone.TButton",
+            foreground=[("!disabled", "#000000")],
+            background=[("active", "#E0B400"), ("!active", "#C79F00")],
+        )
 
         # Initialize statistics variables
         self.directories_created = tk.StringVar(value="Directories: 0")
@@ -288,6 +298,7 @@ class CloneProjectGUI:
             parent,
             text="Clone Project",
             command=self.run_clone,
+            style="Clone.TButton",
         ).grid(row=4, column=0, columnspan=3, pady=(10, 5), sticky="we")
 
     def setup_log_area(self, parent):
