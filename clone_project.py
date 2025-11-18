@@ -275,31 +275,39 @@ class CloneProjectGUI:
 
     def setup_buttons(self, parent):
         """Create control buttons."""
-        # Browse Source button
-        ttk.Button(
+        browse_src_button = ttk.Button(
             parent,
             text="Browse",
             command=lambda: self.browse_dir(self.src_entry),
             width=BUTTON_WIDTH,
             style="Browse.TButton",
-        ).grid(row=0, column=2, padx=5, pady=5)
+        )
+        browse_src_button.grid(row=0, column=2, padx=5, pady=5)
+        browse_src_button.bind("<Enter>", self.on_enter)
+        browse_src_button.bind("<Leave>", self.on_leave)
 
         # Browse Destination button
-        ttk.Button(
+        browse_dst_button = ttk.Button(
             parent,
             text="Browse",
             command=lambda: self.browse_dir(self.dst_entry),
             width=BUTTON_WIDTH,
             style="Browse.TButton",
-        ).grid(row=1, column=2, padx=5, pady=5)
+        )
+        browse_dst_button.grid(row=1, column=2, padx=5, pady=5)
+        browse_dst_button.bind("<Enter>", self.on_enter)
+        browse_dst_button.bind("<Leave>", self.on_leave)
 
         # Clone Project button
-        ttk.Button(
+        clone_button = ttk.Button(
             parent,
             text="Clone Project",
             command=self.run_clone,
             style="Clone.TButton",
-        ).grid(row=4, column=0, columnspan=3, pady=(10, 5), sticky="we")
+        )
+        clone_button.grid(row=4, column=0, columnspan=3, pady=(10, 5), sticky="we")
+        clone_button.bind("<Enter>", self.on_enter)
+        clone_button.bind("<Leave>", self.on_leave)
 
     def setup_log_area(self, parent):
         """Create logging text area with scrollbar."""
@@ -371,6 +379,14 @@ class CloneProjectGUI:
             self.log_text.insert(tk.END, f"{message}\n")
         self.log_text.see(tk.END)
         self.log_text.configure(state="disabled")
+
+    def on_enter(self, event):
+        """Change cursor to hand."""
+        self.root.config(cursor="hand2")
+
+    def on_leave(self, event):
+        """Change cursor back to default."""
+        self.root.config(cursor="")
 
     def run_clone(self):
         """Execute the clone operation from GUI inputs."""
