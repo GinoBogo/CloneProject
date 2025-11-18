@@ -70,7 +70,7 @@ def validate_inputs(
             log_func(
                 f"Warning: Replacement pair '{src}' -> '{dst}' is identical. "
                 "This will result in no change for this specific name.",
-                level="warning",
+                "warning",
             )
 
     # Check for directory conflicts
@@ -114,15 +114,13 @@ def process_file_content(
 
         # Heuristic: if null byte is present, assume binary
         if b"\x00" in content_bytes:
-            log_func(f"Skipped file (likely binary): {file_path}", level="skipped")
+            log_func(f"Skipped file (likely binary): {file_path}", "skipped")
             return counts
 
         try:
             content = content_bytes.decode("utf-8")
         except UnicodeDecodeError:
-            log_func(
-                f"Skipped file (not UTF-8 decodable): {file_path}", level="skipped"
-            )
+            log_func(f"Skipped file (not UTF-8 decodable): {file_path}", "skipped")
             return counts
 
         updated = content
@@ -147,7 +145,7 @@ def process_file_content(
 
         return counts
     except IOError:
-        log_func(f"Skipped file (IO Error): {file_path}", level="skipped")
+        log_func(f"Skipped file (IO Error): {file_path}", "skipped")
         return counts
 
 
@@ -284,7 +282,10 @@ def cli_log(message: str, level: str = "normal") -> None:
 class CloneProjectGUI:
     """Tkinter GUI for the clone project utility."""
 
-    CONFIG_FILE = "clone_project.cfg"
+    src_entry: ttk.Entry
+    dst_entry: ttk.Entry
+    src_name_entry: ttk.Entry
+    dst_name_entry: ttk.Entry
 
     def __init__(self) -> None:
         self.root = tk.Tk()
