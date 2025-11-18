@@ -136,7 +136,7 @@ def test_copy_and_replace(tmp_path, mock_logger):
         "Another old_project_name file."
     )
 
-    folders, files, words = copy_and_replace(
+    folders_created, files_copied, folders_renamed, words_replaced_counts = copy_and_replace(
         src_dir, dst_dir, ["old_project_name"], ["new_project_name"], mock_logger
     )
 
@@ -146,9 +146,10 @@ def test_copy_and_replace(tmp_path, mock_logger):
     assert (dst_dir / "new_project_name_dir" / "file2.txt").read_text() == (
         "Another new_project_name file."
     )
-    assert folders > 0
-    assert files == 2
-    assert words == [2]
+    assert folders_created == 2
+    assert files_copied == 2
+    assert folders_renamed == 1
+    assert words_replaced_counts == [2]
     mock_logger.assert_any_call(
         f"Updated contents of: {(dst_dir / 'file1.txt').resolve()} (1 replacements)"
     )
@@ -311,8 +312,7 @@ def test_cli_logger(capsys):
 def test_run_cli_success(
     mock_rmtree, mock_exists, mock_validate_inputs, mock_copy_and_replace, capsys
 ):
-    mock_exists.return_value = False  # Destination does not exist
-    mock_copy_and_replace.return_value = (1, 1, [1])
+    mock_copy_and_replace.return_value = (1, 1, 1, [1])
     run_cli()
     mock_validate_inputs.assert_called_once_with("/src", "/dst", ["old"], ["new"], cli_logger)
     mock_copy_and_replace.assert_called_once_with(
@@ -392,7 +392,7 @@ def test_run_cli_dst_exists_overwrite(
     mock_rmtree, mock_exists, mock_validate_inputs, mock_copy_and_replace, capsys
 ):
     mock_exists.return_value = True  # Destination exists
-    mock_copy_and_replace.return_value = (1, 1, [1]) # Add return value for copy_and_replace
+    mock_copy_and_replace.return_value = (1, 1, 1, [1]) # Add return value for copy_and_replace
     run_cli()
     mock_rmtree.assert_called_once_with("/dst")
     mock_validate_inputs.assert_called_once_with("/src", "/dst", ["old"], ["new"], cli_logger) # Update mock call

@@ -158,10 +158,11 @@ def copy_and_replace(
     src_names: List[str],
     dst_names: List[str],
     logger: Callable[[str, str], None],
-) -> tuple[int, int, List[int]]:
+) -> tuple[int, int, int, List[int]]:
     """Copy directory structure while replacing names in contents and filenames."""
     folders_created = 0
     files_copied = 0
+    folders_renamed = 0
     words_replaced_counts = [0] * len(src_names)
 
     # Log replacement mapping for clarity
@@ -169,19 +170,46 @@ def copy_and_replace(
     for i, (src_name, dst_name) in enumerate(zip(src_names, dst_names), 1):
         logger(f"  {i}. '{src_name}' → '{dst_name}'")
 
+    # Handle the top-level directory rename separately
+    src_dir_basename = os.path.basename(src_dir)
+    processed_src_dir_basename = src_dir_basename
+    for src_name, dst_name in zip(src_names, dst_names):
+        processed_src_dir_basename = re.sub(
+            re.escape(src_name), dst_name, processed_src_dir_basename
+        )
+    if processed_src_dir_basename != src_dir_basename:
+        folders_renamed += 1
+
     for root, dirs, files in os.walk(src_dir, topdown=True):
-        # Calculate the relative path from src_dir to the current root
         rel_path = os.path.relpath(root, src_dir)
 
-        # Apply all name replacements to the relative path
-        processed_rel_path = rel_path
+        # Calculate the processed relative path for the current directory
+        # This is needed to construct new_root
+        current_processed_rel_path_for_new_root = rel_path
         for src_name, dst_name in zip(src_names, dst_names):
-            processed_rel_path = re.sub(
-                re.escape(src_name), dst_name, processed_rel_path
+            current_processed_rel_path_for_new_root = re.sub(
+                re.escape(src_name), dst_name, current_processed_rel_path_for_new_root
             )
 
-        # Construct the new root path in the destination
-        new_root = os.path.join(dst_dir, processed_rel_path)
+        new_root = os.path.join(dst_dir, current_processed_rel_path_for_new_root)
+
+        if not os.path.exists(new_root):
+            os.makedirs(new_root, exist_ok=True)
+            folders_created += 1
+
+        # Iterate through subdirectories (dirs) to count renames
+        # This loop is for counting renamed *subdirectories*
+        for d in dirs:
+            original_dir_name = d
+            processed_dir_name = original_dir_name
+            for src_name, dst_name in zip(src_names, dst_names):
+                processed_dir_name = re.sub(
+                    re.escape(src_name), dst_name, processed_dir_name
+                )
+            if processed_dir_name != original_dir_name:
+                folders_renamed += 1
+
+        new_root = os.path.join(dst_dir, current_processed_rel_path)
 
         if not os.path.exists(new_root):
             os.makedirs(new_root, exist_ok=True)
@@ -204,7 +232,7 @@ def copy_and_replace(
             for i in range(len(src_names)):
                 words_replaced_counts[i] += file_replacement_counts[i]
 
-    return folders_created, files_copied, words_replaced_counts
+    return folders_created, files_copied, folders_renamed, words_replaced_counts
 
 
 # ==============================================================================
@@ -259,7 +287,7 @@ class CloneProjectGUI:
         )
 
         # Initialize statistics variables
-        self.directories_created = tk.StringVar(value="Directories: 0")
+        self.directories_ratio = tk.StringVar(value="Directories: 0")
         self.files_changed = tk.StringVar(value="Files: 0")
         self.names_replaced = tk.StringVar(value="Names: 0")
 
@@ -375,7 +403,7 @@ class CloneProjectGUI:
         status_bar = ttk.Frame(parent, style="Status.TFrame")
         status_bar.grid(row=7, column=0, columnspan=4, sticky="ew", pady=(5, 0))
 
-        ttk.Label(status_bar, textvariable=self.directories_created, anchor="w").pack(
+        ttk.Label(status_bar, textvariable=self.directories_ratio, anchor="w").pack(
             side=tk.LEFT, padx=5
         )
         ttk.Label(status_bar, textvariable=self.files_changed, anchor="w").pack(
@@ -456,12 +484,14 @@ class CloneProjectGUI:
 
             # Perform clone operation
             self.gui_logger("Starting clone operation...")
-            directories, files, names_replaced_list = copy_and_replace(
+            directories, files, folders_renamed, names_replaced_list = copy_and_replace(
                 src_dir, dst_dir, src_names, dst_names, self.gui_logger
             )
 
             # Update statistics
-            self.directories_created.set(f"Directories: {directories}")
+            self.directories_ratio.set(
+                f"Directories: {folders_renamed}/{directories}"
+            )
             self.files_changed.set(f"Files: {files}")
             self.names_replaced.set(
                 f"Names: {', '.join(map(str, names_replaced_list))}"
@@ -534,10 +564,10 @@ def run_cli() -> None:
 
     # Perform clone operation
     cli_logger("Starting clone operation...")
-    directories, files, names_replaced_list = copy_and_replace(
+    directories, files, folders_renamed, names_replaced_list = copy_and_replace(
         src_dir, dst_dir, src_names, dst_names, cli_logger
     )
-    cli_logger(f"Directories created: {directories}")
+    cli_logger(f"Directories created: {directories} (renamed: {folders_renamed})")
     cli_logger(f"Files copied: {files}")
     cli_logger(f"Names replaced: {', '.join(map(str, names_replaced_list))}")
     cli_logger(f"Operation completed successfully. New project location: {dst_dir}")
