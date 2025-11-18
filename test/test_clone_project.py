@@ -376,7 +376,7 @@ def test_copy_and_replace(tmp_path, mock_log_func):
         src_names,
         dst_names,
         mock_log_func,
-        progress_callback=None,
+        progress_callback=MagicMock(),
     )
 
     expected_dst_root = dst_parent_dir / dst_root_name
