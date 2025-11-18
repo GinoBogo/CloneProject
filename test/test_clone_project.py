@@ -15,17 +15,67 @@ from clone_project import (
     replace_in_contents,
     copy_and_replace,
     validate_inputs,
-    cli_logger,
+    cli_log,
     run_cli,
     show_help,
+    parse_names,
 )
 
 
 # Mock logger for testing
 @pytest.fixture
-def mock_logger():
+def mock_log_func():
     return MagicMock()
 
+
+# --- New Tests for `get_dst_root_path` function ---
+
+from clone_project import get_dst_root_path
+
+def test_get_dst_root_path_parent_dir(tmp_path):
+    src_dir = tmp_path / "old_project"
+    dst_dir = tmp_path / "parent_dir"
+    src_names = ["old_project"]
+    dst_names = ["new_project"]
+
+    dst_root, was_renamed = get_dst_root_path(str(src_dir), str(dst_dir), src_names, dst_names)
+    assert dst_root == str(tmp_path / "parent_dir" / "new_project")
+    assert was_renamed == 1
+
+def test_get_dst_root_path_target_dir_included(tmp_path):
+    src_dir = tmp_path / "old_project"
+    dst_dir = tmp_path / "parent_dir" / "new_project"
+    src_names = ["old_project"]
+    dst_names = ["new_project"]
+
+    # Ensure the target directory exists for os.path.basename to work as expected
+    dst_dir.mkdir(parents=True, exist_ok=True)
+
+    dst_root, was_renamed = get_dst_root_path(str(src_dir), str(dst_dir), src_names, dst_names)
+    assert dst_root == str(tmp_path / "parent_dir" / "new_project")
+    assert was_renamed == 1
+
+def test_get_dst_root_path_no_rename(tmp_path):
+    src_dir = tmp_path / "project_name"
+    dst_dir = tmp_path / "parent_dir"
+    src_names = ["project_name"]
+    dst_names = ["project_name"]
+
+    dst_root, was_renamed = get_dst_root_path(str(src_dir), str(dst_dir), src_names, dst_names)
+    assert dst_root == str(tmp_path / "parent_dir" / "project_name")
+    assert was_renamed == 0
+
+def test_get_dst_root_path_no_rename_target_dir_included(tmp_path):
+    src_dir = tmp_path / "project_name"
+    dst_dir = tmp_path / "parent_dir" / "project_name"
+    src_names = ["project_name"]
+    dst_names = ["project_name"]
+
+    dst_dir.mkdir(parents=True, exist_ok=True)
+
+    dst_root, was_renamed = get_dst_root_path(str(src_dir), str(dst_dir), src_names, dst_names)
+    assert dst_root == str(tmp_path / "parent_dir" / "project_name")
+    assert was_renamed == 0
 
 # --- Tests for `replace_in_contents` function ---
 
@@ -36,13 +86,13 @@ def mock_logger():
 #     - Calls `replace_in_contents` to replace an "old_name" with a "new_name".
 #     - Asserts that the file's content has been updated as expected.
 #     - Asserts that the `mock_logger` was called with the "Updated contents of:" message.
-def test_replace_in_contents(tmp_path, mock_logger):
+def test_replace_in_contents(tmp_path, mock_log_func):
     file_path = tmp_path / "test_file.txt"
     file_path.write_text("This is an old_name project.")
-    replacements = replace_in_contents(file_path, ["old_name"], ["new_name"], mock_logger)
+    replacements = replace_in_contents(file_path, ["old_name"], ["new_name"], mock_log_func)
     assert file_path.read_text() == "This is an new_name project."
     assert replacements == [1]
-    mock_logger.assert_called_with(
+    mock_log_func.assert_called_with(
         f"Updated contents of: {file_path} (1 replacements)"
     )
 
@@ -56,17 +106,17 @@ def test_replace_in_contents(tmp_path, mock_logger):
 #     - Asserts that the replacements are applied sequentially, and the final
 #       content reflects the last replacement for that source string.
 #     - Asserts the total number of replacements.
-def test_replace_in_contents_duplicate_src_names(tmp_path, mock_logger):
+def test_replace_in_contents_duplicate_src_names(tmp_path, mock_log_func):
     file_path = tmp_path / "test_duplicate_names.txt"
     file_path.write_text("This is a test with gino.")
     
     # If 'gino' is replaced by 'bogo', and then 'gino' (which is now 'bogo') is replaced by 'bogo',
     # the final content should be 'This is a test with bogo.'
     # The total replacements should be 1, as 'gino' is only found and replaced once.
-    replacements = replace_in_contents(file_path, ["gino", "gino"], ["bogo", "bogo"], mock_logger)
+    replacements = replace_in_contents(file_path, ["gino", "gino"], ["bogo", "bogo"], mock_log_func)
     assert file_path.read_text() == "This is a test with bogo."
     assert replacements == [1, 0]
-    mock_logger.assert_called_with(
+    mock_log_func.assert_called_with(
         f"Updated contents of: {file_path} (1 replacements)"
     )
 
@@ -78,17 +128,17 @@ def test_replace_in_contents_duplicate_src_names(tmp_path, mock_logger):
 #     - Calls `replace_in_contents` with distinct source names mapping to the same destination name.
 #     - Asserts that both source names are replaced by the common destination name.
 #     - Asserts the total number of replacements.
-def test_replace_in_contents_duplicate_dst_names(tmp_path, mock_logger):
+def test_replace_in_contents_duplicate_dst_names(tmp_path, mock_log_func):
     file_path = tmp_path / "test_duplicate_dst_names.txt"
     file_path.write_text("This is a test with gino and bogo.")
     
-    replacements = replace_in_contents(file_path, ["gino", "bogo"], ["test", "test"], mock_logger)
+    replacements = replace_in_contents(file_path, ["gino", "bogo"], ["test", "test"], mock_log_func)
     assert file_path.read_text() == "This is a test with test and test."
     assert replacements == [1, 1]
-    mock_logger.assert_any_call(
+    mock_log_func.assert_any_call(
         f"Updated contents of: {file_path} (2 replacements)"
     )
-    mock_logger.assert_called_with(
+    mock_log_func.assert_called_with(
         "  Breakdown: 'gino'→'test':1, 'bogo'→'test':1"
     )
 
@@ -101,17 +151,17 @@ def test_replace_in_contents_duplicate_dst_names(tmp_path, mock_logger):
 #     - Calls `replace_in_contents` with this binary file.
 #     - Asserts that the binary file's content remains unchanged.
 #     - Asserts that the `mock_logger` was called with the "Skipped file (likely binary):" message.
-def test_replace_in_contents_binary_file(tmp_path, mock_logger):
+def test_replace_in_contents_binary_file(tmp_path, mock_log_func):
     # Create a dummy binary file (e.g., a few null bytes)
     binary_file_path = tmp_path / "binary.bin"
     binary_file_path.write_bytes(b"\x00\x01\x02\x03")
     replacements = replace_in_contents(
-        binary_file_path, ["old_name"], ["new_name"], mock_logger
+        binary_file_path, ["old_name"], ["new_name"], mock_log_func
     )
     # Content should remain unchanged
     assert binary_file_path.read_bytes() == b"\x00\x01\x02\x03"
     assert replacements == [0]
-    mock_logger.assert_called_with(f"Skipped file (likely binary): {binary_file_path}", level="skipped")
+    mock_log_func.assert_called_with(f"Skipped file (likely binary): {binary_file_path}", level="skipped")
 
 
 # --- Tests for `copy_and_replace` function ---
@@ -130,35 +180,47 @@ def test_replace_in_contents_binary_file(tmp_path, mock_logger):
 #       correctly updated.
 #     - Asserts that the `mock_logger` was called with "Updated contents of:"
 #       messages for the modified files.
-def test_copy_and_replace(tmp_path, mock_logger):
-    src_dir = tmp_path / "old_project_name_src"
-    dst_dir = tmp_path / "dst_new_project"
+def test_copy_and_replace(tmp_path, mock_log_func):
+    src_root_name = "old_project_name_src"
+    dst_root_name = "new_project_name_dst"
+    nested_dir_name_src = "old_project_name_dir"
+    nested_dir_name_dst = "new_project_name_sub_dir"
+    
+    src_dir = tmp_path / src_root_name
+    dst_parent_dir = tmp_path / "destination_parent" # This is the parent directory
+    
     src_dir.mkdir()
-    (src_dir / "file1.txt").write_text("Content with old_project_name.")
-    (src_dir / "old_project_name_dir").mkdir()
-    (src_dir / "old_project_name_dir" / "file2.txt").write_text(
-        "Another old_project_name file."
+    (src_dir / "file1.txt").write_text(f"Content with {src_root_name}.")
+    (src_dir / nested_dir_name_src).mkdir()
+    (src_dir / nested_dir_name_src / "file2.txt").write_text(
+        f"Another {src_root_name} file in {nested_dir_name_src}."
     )
+
+    src_names = [src_root_name, nested_dir_name_src]
+    dst_names = [dst_root_name, nested_dir_name_dst]
 
     folders_created, files_copied, folders_renamed, files_renamed_count, words_replaced_counts = copy_and_replace(
-        src_dir, dst_dir, ["old_project_name"], ["new_project_name"], mock_logger
+        src_dir, dst_parent_dir, src_names, dst_names, mock_log_func
     )
 
-    assert dst_dir.exists()
-    assert (dst_dir / "new_project_name_src" / "file1.txt").read_text() == "Content with new_project_name."
-    assert (dst_dir / "new_project_name_src" / "new_project_name_dir").exists()
-    assert (dst_dir / "new_project_name_src" / "new_project_name_dir" / "file2.txt").read_text() == (
-        "Another new_project_name file."
+    expected_dst_root = dst_parent_dir / dst_root_name
+
+    assert expected_dst_root.exists()
+    assert (expected_dst_root / "file1.txt").read_text() == f"Content with {dst_root_name}."
+    assert (expected_dst_root / nested_dir_name_dst).exists()
+    assert (expected_dst_root / nested_dir_name_dst / "file2.txt").read_text() == (
+        f"Another {dst_root_name} file in {nested_dir_name_dst}."
     )
     assert folders_created == 2
     assert files_copied == 2
-    assert folders_renamed == 2
-    assert words_replaced_counts == [2]
-    mock_logger.assert_any_call(
-        f"Updated contents of: {(dst_dir / 'new_project_name_src' / 'file1.txt').resolve()} (1 replacements)"
+    assert folders_renamed == 2 # Both root and nested folder renamed
+    assert words_replaced_counts == [2, 1] # 2 replacements for src_root_name, 1 for nested_dir_name_src
+
+    mock_log_func.assert_any_call(
+        f"Updated contents of: {(expected_dst_root / 'file1.txt').resolve()} (1 replacements)"
     )
-    mock_logger.assert_any_call(
-        f"Updated contents of: {(dst_dir / 'new_project_name_src' / 'new_project_name_dir' / 'file2.txt').resolve()} (1 replacements)"
+    mock_log_func.assert_any_call(
+        f"Updated contents of: {(expected_dst_root / nested_dir_name_dst / 'file2.txt').resolve()} (2 replacements)"
     )
 
 
@@ -172,9 +234,9 @@ def test_copy_and_replace(tmp_path, mock_logger):
 #     - Calls `validate_inputs` with valid paths and names.
 #     - The test passes if no `ValueError` is raised.
 @patch("os.path.isdir")
-def test_validate_inputs_valid(mock_isdir, mock_logger):
+def test_validate_inputs_valid(mock_isdir, mock_log_func):
     mock_isdir.return_value = True  # Mock source directory as existing
-    validate_inputs("/src", "/dst", ["old"], ["new"], mock_logger)  # Should not raise an error
+    validate_inputs("/src", "/dst", ["old"], ["new"], mock_log_func)  # Should not raise an error
 
 
 # Description: Verifies that `validate_inputs` raises a `ValueError` with the
@@ -183,15 +245,15 @@ def test_validate_inputs_valid(mock_isdir, mock_logger):
 # Methodology:
 #     - Uses `pytest.raises` to assert that `ValueError` is raised when
 #       `src_dir` or `dst_dir` are empty strings.
-def test_validate_inputs_missing_fields(mock_logger):
+def test_validate_inputs_missing_fields(mock_log_func):
     with pytest.raises(ValueError, match="All fields are required and must contain at least one name."):
-        validate_inputs("", "/dst", ["old"], ["new"], mock_logger)
+        validate_inputs("", "/dst", ["old"], ["new"], mock_log_func)
     with pytest.raises(ValueError, match="All fields are required and must contain at least one name."):
-        validate_inputs("/src", "", ["old"], ["new"], mock_logger)
+        validate_inputs("/src", "", ["old"], ["new"], mock_log_func)
     with pytest.raises(ValueError, match="All fields are required and must contain at least one name."):
-        validate_inputs("/src", "/dst", [], ["new"], mock_logger)
+        validate_inputs("/src", "/dst", [], ["new"], mock_log_func)
     with pytest.raises(ValueError, match="All fields are required and must contain at least one name."):
-        validate_inputs("/src", "/dst", ["old"], [], mock_logger)
+        validate_inputs("/src", "/dst", ["old"], [], mock_log_func)
 
 
 # Description: Confirms that `validate_inputs` raises a `ValueError` with the
@@ -201,11 +263,11 @@ def test_validate_inputs_missing_fields(mock_logger):
 #     - Uses `pytest.raises` to assert that `ValueError` is raised when a
 #       non-existent source directory is provided. (Note: `os.path.isdir` is
 #       not mocked here, so it behaves realistically for a non-existent path).
-def test_validate_inputs_src_dir_not_found(mock_logger):
+def test_validate_inputs_src_dir_not_found(mock_log_func):
     with pytest.raises(
         ValueError, match="Source directory 'non_existent_dir' not found."
     ):
-        validate_inputs("non_existent_dir", "/dst", ["old"], ["new"], mock_logger)
+        validate_inputs("non_existent_dir", "/dst", ["old"], ["new"], mock_log_func)
 
 
 # Description: Verifies that `validate_inputs` raises a `ValueError` when the
@@ -216,13 +278,13 @@ def test_validate_inputs_src_dir_not_found(mock_logger):
 #     - Uses `pytest.raises` to assert that a `ValueError` with the correct
 #       message about name count mismatch is raised.
 @patch("os.path.isdir")
-def test_validate_inputs_name_count_mismatch(mock_isdir, mock_logger):
+def test_validate_inputs_name_count_mismatch(mock_isdir, mock_log_func):
     mock_isdir.return_value = True  # Mock source directory as existing
     with pytest.raises(
         ValueError,
         match=r"Number of source names \(1\) must match number of destination names \(2\).",
     ):
-        validate_inputs("/src", "/dst", ["old_name"], ["new_name1", "new_name2"], mock_logger)
+        validate_inputs("/src", "/dst", ["old_name"], ["new_name1", "new_name2"], mock_log_func)
 
 
 # Description: Checks that `validate_inputs` does not raise a `ValueError`
@@ -233,9 +295,9 @@ def test_validate_inputs_name_count_mismatch(mock_isdir, mock_logger):
 #     - Calls `validate_inputs` with `src_dir != dst_dir` and `src_name == dst_name`.
 #     - The test passes if no `ValueError` is raised.
 @patch("os.path.isdir")
-def test_validate_inputs_identical_src_dst_names_different_dirs(mock_isdir, mock_logger):
+def test_validate_inputs_identical_src_dst_names_different_dirs(mock_isdir, mock_log_func):
     mock_isdir.return_value = True  # Mock source directory as existing
-    validate_inputs("/src_dir", "/dst_dir", ["same_name"], ["same_name"], mock_logger) # Should not raise an error
+    validate_inputs("/src_dir", "/dst_dir", ["same_name"], ["same_name"], mock_log_func) # Should not raise an error
 
 
 # Description: Verifies that `validate_inputs` logs a warning when a source name
@@ -246,16 +308,16 @@ def test_validate_inputs_identical_src_dst_names_different_dirs(mock_isdir, mock
 #     - Calls `validate_inputs` with `src_dir != dst_dir` and `src_name == dst_name`.
 #     - Asserts that the `mock_logger` was called with the expected warning message.
 @patch("os.path.isdir")
-def test_validate_inputs_logs_warning_for_identical_names_different_dirs(mock_isdir, mock_logger):
+def test_validate_inputs_logs_warning_for_identical_names_different_dirs(mock_isdir, mock_log_func):
     mock_isdir.return_value = True  # Mock source directory as existing
     src_dir = "/src_dir"
     dst_dir = "/dst_dir"
     src_names = ["same_name"]
     dst_names = ["same_name"]
     
-    validate_inputs(src_dir, dst_dir, src_names, dst_names, mock_logger)
+    validate_inputs(src_dir, dst_dir, src_names, dst_names, mock_log_func)
     
-    mock_logger.assert_called_with(
+    mock_log_func.assert_called_with(
         "Warning: Replacement pair 'same_name' -> 'same_name' is identical. "
         "This will result in no change for this specific name.",
         level="warning"
@@ -270,13 +332,13 @@ def test_validate_inputs_logs_warning_for_identical_names_different_dirs(mock_is
 #     - Uses `pytest.raises` to assert that a `ValueError` with the correct
 #       message "Source and destination directories cannot be the same." is raised.
 @patch("os.path.isdir")
-def test_validate_inputs_src_dst_same_dir_unconditional_error(mock_isdir, mock_logger):
+def test_validate_inputs_src_dst_same_dir_unconditional_error(mock_isdir, mock_log_func):
     mock_isdir.return_value = True  # Mock source directory as existing
     with pytest.raises(
         ValueError,
         match="Source and destination directories cannot be the same.",
     ):
-        validate_inputs("/same_dir", "/same_dir", ["name1"], ["name2"], mock_logger)
+        validate_inputs("/same_dir", "/same_dir", ["name1"], ["name2"], mock_log_func)
 
 
 # --- Tests for `cli_logger` function ---
@@ -288,8 +350,8 @@ def test_validate_inputs_src_dst_same_dir_unconditional_error(mock_isdir, mock_l
 #     - Calls `cli_logger` with a test message.
 #     - Asserts that the captured stdout matches the expected message
 #       followed by a newline.
-def test_cli_logger(capsys):
-    cli_logger("CLI log message")
+def test_cli_log(capsys):
+    cli_log("CLI log message")
     captured = capsys.readouterr()
     assert captured.out == "CLI log message\n"
 
@@ -318,9 +380,9 @@ def test_run_cli_success(
 ):
     mock_copy_and_replace.return_value = (1, 1, 1, 1, [1])
     run_cli()
-    mock_validate_inputs.assert_called_once_with("/src", "/dst", ["old"], ["new"], cli_logger)
+    mock_validate_inputs.assert_called_once_with("/src", "/dst", ["old"], ["new"], cli_log)
     mock_copy_and_replace.assert_called_once_with(
-        "/src", "/dst", ["old"], ["new"], cli_logger
+        "/src", "/dst", ["old"], ["new"], cli_log
     )
     captured = capsys.readouterr()
     assert "Replacement plan:" in captured.out
@@ -389,30 +451,38 @@ def test_run_cli_validation_error(mock_validate_inputs, capsys):
 @patch("clone_project.validate_inputs")
 @patch("os.path.exists")
 @patch("shutil.rmtree")
-@patch("sys.argv", ["clone_project.py", "/src", "/dst", "old", "new"])
+@patch("sys.argv", ["clone_project.py", "/src/old_proj", "/dst_parent/new_proj", "old_proj", "new_proj"])
 def test_run_cli_dst_exists_overwrite(
     mock_rmtree, mock_exists, mock_validate_inputs, mock_copy_and_replace, capsys
 ):
-    mock_exists.return_value = True  # Destination exists
+    # Mock os.path.exists to return True for the *calculated* dst_root
+    # The calculated dst_root will be /dst_parent/new_proj
+    mock_exists.side_effect = lambda path: path == "/dst_parent/new_proj"
+
     mock_copy_and_replace.return_value = (1, 1, 1, 1, [1]) # Add return value for copy_and_replace
     run_cli()
-    mock_rmtree.assert_called_once_with("/dst")
-    mock_validate_inputs.assert_called_once_with("/src", "/dst", ["old"], ["new"], cli_logger) # Update mock call
-    mock_copy_and_replace.assert_called_once_with( # Add assertion for copy_and_replace
-        "/src", "/dst", ["old"], ["new"], cli_logger
+    
+    # rmtree should be called on the calculated dst_root
+    mock_rmtree.assert_called_once_with("/dst_parent/new_proj")
+    
+    mock_validate_inputs.assert_called_once_with(
+        "/src/old_proj", "/dst_parent/new_proj", ["old_proj"], ["new_proj"], cli_log
+    )
+    mock_copy_and_replace.assert_called_once_with(
+        "/src/old_proj", "/dst_parent/new_proj", ["old_proj"], ["new_proj"], cli_log
     )
     captured = capsys.readouterr()
     assert "Replacement plan:" in captured.out
-    assert "  1. 'old' → 'new'" in captured.out
+    assert "  1. 'old_proj' → 'new_proj'" in captured.out
     assert (
-        "Warning: Destination directory '/dst' already exists. Overwriting..."
+        "Warning: Destination directory '/dst_parent/new_proj' already exists. Overwriting..."
         in captured.out
     )
     assert "Starting clone operation..." in captured.out
     assert "Total Directories: 1" in captured.out
     assert "Total Files: 1" in captured.out
     assert "Names replaced: 1" in captured.out
-    assert "Operation completed successfully." in captured.out
+    assert "Operation completed successfully. New project location: /dst_parent/new_proj" in captured.out
 
 
 # --- Tests for `show_help` function ---
