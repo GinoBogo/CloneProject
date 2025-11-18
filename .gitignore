@@ -3,6 +3,7 @@
 
 __pycache__
 
+*.cfg
 
 github-markdown.css
 
