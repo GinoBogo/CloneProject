@@ -11,7 +11,7 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, ANY
 from clone_project import (
     replace_in_contents,
     copy_and_replace,
@@ -21,6 +21,7 @@ from clone_project import (
     show_help,
     parse_names,
     get_dst_root_path,
+    count_files_and_dirs,
 )
 
 
@@ -127,6 +128,42 @@ def test_get_dst_root_path_no_rename_target_dir_included(tmp_path):
     )
     assert dst_root == str(tmp_path / "parent_dir" / "project_name")
     assert was_renamed == 0
+
+
+# --- Tests for `count_files_and_dirs` function ---
+
+
+# Description: Verifies that `count_files_and_dirs` correctly counts files and directories.
+# Methodology:
+#     - Creates a temporary directory structure with nested directories and files.
+#     - Calls `count_files_and_dirs` on the temporary source directory.
+#     - Asserts that the returned total directory count and total file count match the expected values.
+def test_count_files_and_dirs(tmp_path):
+    src_dir = tmp_path / "test_project"
+    src_dir.mkdir()
+    (src_dir / "file1.txt").write_text("content")
+    (src_dir / "subdir1").mkdir()
+    (src_dir / "subdir1" / "file2.txt").write_text("content")
+    (src_dir / "subdir2").mkdir()
+    (src_dir / "subdir2" / "file3.txt").write_text("content")
+    (src_dir / "subdir2" / "subsubdir1").mkdir()
+    (src_dir / "subdir2" / "subsubdir1" / "file4.txt").write_text("content")
+
+    total_dirs, total_files = count_files_and_dirs(str(src_dir))
+
+    # Expected:
+    # test_project (root)
+    #   file1.txt
+    #   subdir1
+    #     file2.txt
+    #   subdir2
+    #     file3.txt
+    #     subsubdir1
+    #       file4.txt
+    # Total directories: test_project, subdir1, subdir2, subsubdir1 = 4
+    # Total files: file1.txt, file2.txt, file3.txt, file4.txt = 4
+    assert total_dirs == 4
+    assert total_files == 4
 
 
 # --- Tests for `parse_names` function ---
@@ -333,7 +370,14 @@ def test_copy_and_replace(tmp_path, mock_log_func):
         folders_renamed,
         files_renamed_count,
         words_replaced_counts,
-    ) = copy_and_replace(src_dir, dst_parent_dir, src_names, dst_names, mock_log_func)
+    ) = copy_and_replace(
+        src_dir,
+        dst_parent_dir,
+        src_names,
+        dst_names,
+        mock_log_func,
+        progress_callback=None,
+    )
 
     expected_dst_root = dst_parent_dir / dst_root_name
 
@@ -361,6 +405,46 @@ def test_copy_and_replace(tmp_path, mock_log_func):
         f"Updated contents of: {(expected_dst_root / nested_dir_name_dst / 'file2.txt').resolve()} (2 replacements)",
         "normal",
     )
+
+
+# Description: Verifies that `copy_and_replace` correctly utilizes the `progress_callback`.
+# Methodology:
+#     - Sets up a dummy source directory with multiple files.
+#     - Mocks `progress_callback` to track its calls.
+#     - Calls `copy_and_replace` with the mocked callback.
+#     - Asserts that `progress_callback` was called for each file with the correct progress.
+def test_copy_and_replace_progress_callback(tmp_path, mock_log_func):
+    src_root_name = "test_project_src"
+    dst_root_name = "test_project_dst"
+
+    src_dir = tmp_path / src_root_name
+    dst_parent_dir = tmp_path / "destination_parent"
+
+    src_dir.mkdir()
+    (src_dir / "file1.txt").write_text("content1")
+    (src_dir / "file2.txt").write_text("content2")
+    (src_dir / "subdir").mkdir()
+    (src_dir / "subdir" / "file3.txt").write_text("content3")
+
+    src_names = [src_root_name]
+    dst_names = [dst_root_name]
+
+    mock_progress_callback = MagicMock()
+
+    copy_and_replace(
+        src_dir,
+        dst_parent_dir,
+        src_names,
+        dst_names,
+        mock_log_func,
+        progress_callback=mock_progress_callback,
+    )
+
+    # Expect 3 files to be processed
+    assert mock_progress_callback.call_count == 3
+    mock_progress_callback.assert_any_call("file", 1, 3)
+    mock_progress_callback.assert_any_call("file", 2, 3)
+    mock_progress_callback.assert_any_call("file", 3, 3)
 
 
 # --- Tests for `validate_inputs` function ---
@@ -569,7 +653,7 @@ def test_run_cli_success(
         "/src", "/dst", ["old"], ["new"], cli_log
     )
     mock_copy_and_replace.assert_called_once_with(
-        "/src", "/dst", ["old"], ["new"], cli_log
+        "/src", "/dst", ["old"], ["new"], cli_log, progress_callback=ANY
     )
     captured = capsys.readouterr()
     assert "Replacement plan:" in captured.out
@@ -577,6 +661,63 @@ def test_run_cli_success(
     assert "Total Files: 1" in captured.out
     assert "Names replaced: 1" in captured.out
     assert "Operation completed successfully." in captured.out
+
+
+# Description: Verifies that `run_cli` correctly uses `cli_progress_callback` and updates stdout.
+# Methodology:
+#     - Mocks `copy_and_replace` to simulate file processing and trigger progress updates.
+#     - Patches `sys.stdout.write` and `sys.stdout.flush` to capture CLI output.
+#     - Calls `run_cli`.
+#     - Asserts that `sys.stdout.write` was called with expected progress messages.
+@patch("clone_project.copy_and_replace")
+@patch("clone_project.validate_inputs")
+@patch("os.path.exists")
+@patch("shutil.rmtree")
+@patch(
+    "sys.argv",
+    ["clone_project.py", "/src/old_proj", "/dst_parent", "old_proj", "new_proj"],
+)
+@patch("clone_project.cli_progress_callback")  # Patch cli_progress_callback
+@patch("clone_project.cli_log")  # Patch cli_log at the decorator level
+def test_run_cli_progress_callback(
+    mock_cli_log,  # cli_log mock is now the first argument
+    mock_cli_progress_callback,  # cli_progress_callback mock
+    mock_rmtree,
+    mock_exists,
+    mock_validate_inputs,
+    mock_copy_and_replace,
+    capsys,
+    tmp_path,
+    mock_log_func,  # Added
+    monkeypatch,  # Added
+):
+    # Mock copy_and_replace to call the progress_callback
+    def mock_copy_and_replace_side_effect(*args, **kwargs):
+        progress_cb = kwargs.get("progress_callback")
+        if progress_cb:
+            progress_cb("file", 1, 2)
+            progress_cb("file", 2, 2)
+        return (
+            1,
+            2,
+            0,
+            0,
+            [1],
+        )  # total_dirs, total_files, dirs_renamed, files_renamed, name_counts
+
+    mock_copy_and_replace.side_effect = mock_copy_and_replace_side_effect
+    mock_exists.return_value = False  # Assume destination does not exist
+
+    run_cli()
+
+    # Assert that progress messages were written
+    mock_cli_progress_callback.assert_any_call("file", 1, 2)
+    mock_cli_progress_callback.assert_any_call("file", 2, 2)
+
+    # Assert that cli_log was called with the success message
+    mock_cli_log.assert_any_call(
+        "Operation completed successfully. New project location: /dst_parent/new_proj"
+    )
 
 
 # Description: Verifies that `run_cli` correctly handles an insufficient
@@ -661,7 +802,12 @@ def test_run_cli_dst_exists_overwrite(
         "/src/old_proj", "/dst_parent", ["old_proj"], ["new_proj"], cli_log
     )
     mock_copy_and_replace.assert_called_once_with(
-        "/src/old_proj", "/dst_parent", ["old_proj"], ["new_proj"], cli_log
+        "/src/old_proj",
+        "/dst_parent",
+        ["old_proj"],
+        ["new_proj"],
+        cli_log,
+        progress_callback=ANY,
     )
     captured = capsys.readouterr()
     assert "Replacement plan:" in captured.out

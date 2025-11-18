@@ -14,13 +14,13 @@ import shutil
 import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
-from typing import Callable, List
+from typing import Callable, List, Tuple
 
 # ==============================================================================
 # CONSTANTS
 # ==============================================================================
 
-MIN_WINDOW_SIZE = (600, 600)
+MIN_WINDOW_SIZE = (600, 650)  # Increased height for progress bar
 LABEL_WIDTH = 20
 ENTRY_WIDTH = 50
 BTN_WIDTH = 10
@@ -76,6 +76,21 @@ def validate_inputs(
     # Check for directory conflicts
     if src_dir == dst_dir:
         raise ValueError("Source and destination directories cannot be the same.")
+
+
+def count_files_and_dirs(src_dir: str) -> Tuple[int, int]:
+    """Count total files and directories for progress tracking."""
+    total_dirs = 0
+    total_files = 0
+
+    for root, dirs, files in os.walk(src_dir):
+        total_dirs += len(dirs)
+        total_files += len(files)
+
+    # Add 1 for the root directory
+    total_dirs += 1
+
+    return total_dirs, total_files
 
 
 def show_help() -> None:
@@ -192,6 +207,7 @@ def copy_and_replace(
     src_names: List[str],
     dst_names: List[str],
     log_func: Callable[[str, str], None],
+    progress_callback: Callable[[str, int, int], None],
 ) -> tuple[int, int, int, int, List[int]]:
     """Copy directory structure while replacing names in contents and filenames."""
     log_func("Replacement mapping:", "info")
@@ -200,6 +216,10 @@ def copy_and_replace(
         log_func(f"  {i}. '{src}' → '{dst}'", "info")
 
     dst_root, root_renamed = get_dst_root_path(src_dir, dst_dir, src_names, dst_names)
+
+    # Count total files for progress tracking
+    total_dirs_count, total_files_count = count_files_and_dirs(src_dir)
+    processed_files = 0
 
     # Create ONLY the destination root directory
     os.makedirs(dst_root, exist_ok=True)
@@ -255,6 +275,11 @@ def copy_and_replace(
             # Copy file
             shutil.copy2(src_file, dst_file)
             total_files += 1
+            processed_files += 1
+
+            # Update progress
+            if progress_callback:
+                progress_callback("file", processed_files, total_files_count)
 
             # Count filename rename
             if new_file_name != file_name:
@@ -321,6 +346,10 @@ class CloneProjectGUI:
         self.file_var = tk.StringVar(value="Files: 0")
         self.name_var = tk.StringVar(value="Names: 0")
 
+        # Progress tracking
+        self.progress_var = tk.DoubleVar()
+        self.progress_label = tk.StringVar(value="Ready")
+
         self.setup_ui()
         self.root.protocol("WM_DELETE_WINDOW", self._save_exit)
 
@@ -331,6 +360,7 @@ class CloneProjectGUI:
         self.style.configure("Status.TFrame", relief="flat")
         self.style.configure("Browse.TButton")
         self.style.configure("Clone.TButton")
+        self.style.configure("Horizontal.TProgressbar", thickness=20)
         self.style.map(
             "Browse.TButton",
             foreground=[("!disabled", "#FFFFFF")],
@@ -350,6 +380,7 @@ class CloneProjectGUI:
         # Setup all UI components
         self.setup_inputs(main)
         self.setup_buttons(main)
+        self.setup_progress(main)
         self.setup_log(main)
         self.setup_status(main)
         self.setup_layout(main)
@@ -398,6 +429,26 @@ class CloneProjectGUI:
         clone_btn.grid(row=4, column=0, columnspan=3, pady=(10, 5), sticky="we")
         self.bind_events(clone_btn)
 
+    def setup_progress(self, parent: ttk.Frame) -> None:
+        """Create progress bar and label."""
+        progress_frame = ttk.Frame(parent)
+        progress_frame.grid(row=5, column=0, columnspan=3, pady=(10, 5), sticky="we")
+
+        # Progress label
+        self.progress_label_widget = ttk.Label(
+            progress_frame, textvariable=self.progress_label, anchor="w"
+        )
+        self.progress_label_widget.pack(fill=tk.X, padx=5)
+
+        # Progress bar
+        self.progress_bar = ttk.Progressbar(
+            progress_frame,
+            variable=self.progress_var,
+            maximum=100,
+            style="Horizontal.TProgressbar",
+        )
+        self.progress_bar.pack(fill=tk.X, padx=5, pady=(2, 0))
+
     def bind_events(self, btn: ttk.Button) -> None:
         """Bind common button events."""
         btn.bind("<Enter>", self.on_enter)
@@ -406,7 +457,7 @@ class CloneProjectGUI:
     def setup_log(self, parent: ttk.Frame) -> None:
         """Create logging text area with scrollbar."""
         self.log = tk.Text(parent, height=10, state="disabled", wrap="none")
-        self.log.grid(row=5, column=0, columnspan=3, pady=(10, 0), sticky="nsew")
+        self.log.grid(row=6, column=0, columnspan=3, pady=(10, 0), sticky="nsew")
 
         # Configure text tags for different message levels
         self.setup_tags()
@@ -430,17 +481,17 @@ class CloneProjectGUI:
     def setup_scrollbars(self, parent: ttk.Frame) -> None:
         """Setup horizontal and vertical scrollbars."""
         x_scroll = ttk.Scrollbar(parent, orient=tk.HORIZONTAL, command=self.log.xview)
-        x_scroll.grid(row=6, column=0, columnspan=3, sticky="ew")
+        x_scroll.grid(row=7, column=0, columnspan=3, sticky="ew")
         self.log.configure(xscrollcommand=x_scroll.set)
 
         y_scroll = ttk.Scrollbar(parent, orient=tk.VERTICAL, command=self.log.yview)
-        y_scroll.grid(row=5, column=3, sticky="ns")
+        y_scroll.grid(row=6, column=3, sticky="ns")
         self.log.configure(yscrollcommand=y_scroll.set)
 
     def setup_status(self, parent: ttk.Frame) -> None:
         """Create the status bar."""
         status = ttk.Frame(parent, style="Status.TFrame")
-        status.grid(row=7, column=0, columnspan=4, sticky="ew", pady=(5, 0))
+        status.grid(row=8, column=0, columnspan=4, sticky="ew", pady=(5, 0))
 
         status_vars = [self.dir_var, self.file_var, self.name_var]
 
@@ -450,7 +501,7 @@ class CloneProjectGUI:
     def setup_layout(self, parent: ttk.Frame) -> None:
         """Configure grid weights for responsive layout."""
         parent.columnconfigure(1, weight=1)
-        parent.rowconfigure(5, weight=1)
+        parent.rowconfigure(6, weight=1)
 
     def browse_dir(self, entry: ttk.Entry) -> None:
         """Open directory browser and update entry field."""
@@ -458,6 +509,21 @@ class CloneProjectGUI:
         if path:
             entry.delete(0, tk.END)
             entry.insert(0, path)
+
+    def update_progress(self, item_type: str, current: int, total: int) -> None:
+        """Update progress bar and label."""
+        if total > 0:
+            percentage = (current / total) * 100
+            self.progress_var.set(percentage)
+            self.progress_label.set(
+                f"Processing {item_type}s: {current}/{total} ({percentage:.1f}%)"
+            )
+        self.root.update_idletasks()
+
+    def reset_progress(self) -> None:
+        """Reset progress bar to initial state."""
+        self.progress_var.set(0)
+        self.progress_label.set("Ready")
 
     def gui_log(self, msg: str, level: str = "normal") -> None:
         """Log messages to the GUI text area."""
@@ -473,6 +539,7 @@ class CloneProjectGUI:
         self.log.insert(*args)
         self.log.see(tk.END)
         self.log.configure(state="disabled")
+        self.root.update_idletasks()
 
     def on_enter(self, event: tk.Event) -> None:
         """Change cursor to hand."""
@@ -500,12 +567,16 @@ class CloneProjectGUI:
                     return
                 shutil.rmtree(dst_root)
 
+            # Reset progress before starting
+            self.reset_progress()
+
             # Perform clone operation
             self.do_clone(src, dst, src_names, dst_names)
 
         except Exception as e:
             self.gui_log(f"Error: {e}", level="error")
             messagebox.showerror("Error", str(e))
+            self.reset_progress()
 
     def log_plan(self, src_names: List[str], dst_names: List[str]) -> None:
         """Log the replacement plan."""
@@ -540,12 +611,23 @@ class CloneProjectGUI:
             dirs_renamed,
             files_renamed,
             name_counts,
-        ) = copy_and_replace(src, dst, src_names, dst_names, self.gui_log)
+        ) = copy_and_replace(
+            src,
+            dst,
+            src_names,
+            dst_names,
+            self.gui_log,
+            progress_callback=self.update_progress,
+        )
 
         # Update statistics
         self.dir_var.set(f"Directories: {dirs_renamed}/{total_dirs}")
         self.file_var.set(f"Files: {files_renamed}/{total_files}")
         self.name_var.set(f"Names: {', '.join(map(str, name_counts))}")
+
+        # Complete progress
+        self.progress_var.set(100)
+        self.progress_label.set("Operation completed successfully!")
 
         self.gui_log(
             f"Operation completed successfully. New project location: {dst}",
@@ -570,6 +652,16 @@ class CloneProjectGUI:
 # ==============================================================================
 # CLI IMPLEMENTATION
 # ==============================================================================
+
+
+def cli_progress_callback(item_type: str, current: int, total: int) -> None:
+    """Update progress for CLI mode."""
+    if total > 0:
+        percentage = (current / total) * 100
+        sys.stdout.write(
+            f"\rProcessing {item_type}s: {current}/{total} ({percentage:.1f}%)"
+        )
+        sys.stdout.flush()
 
 
 def run_cli() -> None:
@@ -616,7 +708,17 @@ def run_cli() -> None:
         dirs_renamed,
         files_renamed,
         name_counts,
-    ) = copy_and_replace(src_dir, dst_dir, src_names, dst_names, cli_log)
+    ) = copy_and_replace(
+        src_dir,
+        dst_dir,
+        src_names,
+        dst_names,
+        cli_log,
+        progress_callback=cli_progress_callback,
+    )
+
+    # Clear the progress line and print final results
+    sys.stdout.write("\r" + " " * 50 + "\r")
 
     cli_log(f"Total Directories: {total_dirs} (renamed: {dirs_renamed})")
     cli_log(f"Total Files: {total_files} (renamed: {files_renamed})")
