@@ -598,7 +598,7 @@ def run_cli() -> None:
         names_replaced_list,
     ) = copy_and_replace(src_dir, dst_dir, src_names, dst_names, cli_logger)
     cli_logger(
-        f"Directories created: {total_directories} (renamed: {directories_renamed})"
+        f"Total Directories: {total_directories} (renamed: {directories_renamed})"
     )
     cli_logger(f"Files copied: {total_files} (names changed: {files_renamed})")
     cli_logger(f"Names replaced: {', '.join(map(str, names_replaced_list))}")

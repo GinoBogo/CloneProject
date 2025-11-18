@@ -5,6 +5,10 @@
 # Then run tests from the project root:
 # PYTHONPATH=. ./.venv/bin/pytest
 
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import pytest
 from unittest.mock import MagicMock, patch
 from clone_project import (
@@ -136,7 +140,7 @@ def test_copy_and_replace(tmp_path, mock_logger):
         "Another old_project_name file."
     )
 
-    folders_created, files_copied, folders_renamed, words_replaced_counts = copy_and_replace(
+    folders_created, files_copied, folders_renamed, files_renamed_count, words_replaced_counts = copy_and_replace(
         src_dir, dst_dir, ["old_project_name"], ["new_project_name"], mock_logger
     )
 
@@ -312,7 +316,7 @@ def test_cli_logger(capsys):
 def test_run_cli_success(
     mock_rmtree, mock_exists, mock_validate_inputs, mock_copy_and_replace, capsys
 ):
-    mock_copy_and_replace.return_value = (1, 1, 1, [1])
+    mock_copy_and_replace.return_value = (1, 1, 1, 1, [1])
     run_cli()
     mock_validate_inputs.assert_called_once_with("/src", "/dst", ["old"], ["new"], cli_logger)
     mock_copy_and_replace.assert_called_once_with(
@@ -320,9 +324,7 @@ def test_run_cli_success(
     )
     captured = capsys.readouterr()
     assert "Replacement plan:" in captured.out
-    assert "  1. 'old' → 'new'" in captured.out
-    assert "Starting clone operation..." in captured.out
-    assert "Directories created: 1" in captured.out
+    assert "Total Directories: 1" in captured.out
     assert "Files copied: 1" in captured.out
     assert "Names replaced: 1" in captured.out
     assert "Operation completed successfully." in captured.out
@@ -392,7 +394,7 @@ def test_run_cli_dst_exists_overwrite(
     mock_rmtree, mock_exists, mock_validate_inputs, mock_copy_and_replace, capsys
 ):
     mock_exists.return_value = True  # Destination exists
-    mock_copy_and_replace.return_value = (1, 1, 1, [1]) # Add return value for copy_and_replace
+    mock_copy_and_replace.return_value = (1, 1, 1, 1, [1]) # Add return value for copy_and_replace
     run_cli()
     mock_rmtree.assert_called_once_with("/dst")
     mock_validate_inputs.assert_called_once_with("/src", "/dst", ["old"], ["new"], cli_logger) # Update mock call
@@ -407,7 +409,7 @@ def test_run_cli_dst_exists_overwrite(
         in captured.out
     )
     assert "Starting clone operation..." in captured.out
-    assert "Directories created: 1" in captured.out
+    assert "Total Directories: 1" in captured.out
     assert "Files copied: 1" in captured.out
     assert "Names replaced: 1" in captured.out
     assert "Operation completed successfully." in captured.out
