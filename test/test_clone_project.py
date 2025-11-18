@@ -117,7 +117,62 @@ def test_get_dst_root_path_no_rename_target_dir_included(tmp_path):
 
 
 # --- Tests for `parse_names` function ---
-# (Add tests for parse_names here when implemented)
+
+# Description: Verifies that `parse_names` correctly handles an empty input string.
+# Methodology:
+#     - Calls `parse_names` with an empty string.
+#     - Asserts that the returned list is empty.
+def test_parse_names_empty_string():
+    assert parse_names("") == []
+
+# Description: Verifies that `parse_names` correctly handles a string containing only whitespace.
+# Methodology:
+#     - Calls `parse_names` with a whitespace-only string.
+#     - Asserts that the returned list is empty.
+def test_parse_names_whitespace_string():
+    assert parse_names("   ") == []
+
+# Description: Verifies that `parse_names` correctly parses a single name without extra whitespace.
+# Methodology:
+#     - Calls `parse_names` with a single name.
+#     - Asserts that the returned list contains only that name.
+def test_parse_names_single_name():
+    assert parse_names("project_name") == ["project_name"]
+
+# Description: Verifies that `parse_names` correctly parses multiple comma-separated names.
+# Methodology:
+#     - Calls `parse_names` with a string of multiple names.
+#     - Asserts that the returned list contains all names, correctly stripped.
+def test_parse_names_multiple_names():
+    assert parse_names("name1,name2,name3") == ["name1", "name2", "name3"]
+
+# Description: Verifies that `parse_names` strips leading and trailing whitespace from names.
+# Methodology:
+#     - Calls `parse_names` with names containing leading/trailing whitespace.
+#     - Asserts that the returned list contains names with whitespace stripped.
+def test_parse_names_with_whitespace():
+    assert parse_names("  name1  , name2 ,name3   ") == ["name1", "name2", "name3"]
+
+# Description: Verifies that `parse_names` handles names with internal spaces correctly.
+# Methodology:
+#     - Calls `parse_names` with names containing internal spaces.
+#     - Asserts that internal spaces are preserved.
+def test_parse_names_internal_spaces():
+    assert parse_names("my project, another name") == ["my project", "another name"]
+
+# Description: Verifies that `parse_names` filters out empty entries from a comma-separated string.
+# Methodology:
+#     - Calls `parse_names` with a string containing empty entries (e.g., "name1,,name2").
+#     - Asserts that the returned list does not include the empty entries.
+def test_parse_names_empty_entries():
+    assert parse_names("name1,,name2,") == ["name1", "name2"]
+
+# Description: Verifies that `parse_names` handles a mix of whitespace and empty entries.
+# Methodology:
+#     - Calls `parse_names` with a complex string.
+#     - Asserts that the output is correctly parsed and cleaned.
+def test_parse_names_mixed_whitespace_empty_entries():
+    assert parse_names("  first  , , second , third  ") == ["first", "second", "third"]
 
 
 # --- Tests for `replace_in_contents` function ---
