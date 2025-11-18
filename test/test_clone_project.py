@@ -19,6 +19,7 @@ from clone_project import (
     run_cli,
     show_help,
     parse_names,
+    get_dst_root_path,
 )
 
 
@@ -28,10 +29,7 @@ def mock_log_func():
     return MagicMock()
 
 
-# --- New Tests for `get_dst_root_path` function ---
-
-from clone_project import get_dst_root_path
-
+# --- Tests for `get_dst_root_path` function ---
 
 # Description: Verifies that `get_dst_root_path` correctly constructs the
 #              destination path when the source project is cloned into a new
@@ -117,6 +115,11 @@ def test_get_dst_root_path_no_rename_target_dir_included(tmp_path):
     assert dst_root == str(tmp_path / "parent_dir" / "project_name")
     assert was_renamed == 0
 
+
+# --- Tests for `parse_names` function ---
+# (Add tests for parse_names here when implemented)
+
+
 # --- Tests for `replace_in_contents` function ---
 
 # Description: Verifies that the `replace_in_contents` function correctly
@@ -150,8 +153,8 @@ def test_replace_in_contents_duplicate_src_names(tmp_path, mock_log_func):
     file_path.write_text("This is a test with gino.")
     
     # If 'gino' is replaced by 'bogo', and then 'gino' (which is now 'bogo') is replaced by 'bogo',
-    # the final content should be 'This is a test with bogo.'
-    # The total replacements should be 1, as 'gino' is only found and replaced once.
+#     the final content should be 'This is a test with bogo.'
+#     The total replacements should be 1, as 'gino' is only found and replaced once.
     replacements = replace_in_contents(file_path, ["gino", "gino"], ["bogo", "bogo"], mock_log_func)
     assert file_path.read_text() == "This is a test with bogo."
     assert replacements == [1, 0]
@@ -382,7 +385,7 @@ def test_validate_inputs_src_dst_same_dir_unconditional_error(mock_isdir, mock_l
         validate_inputs("/same_dir", "/same_dir", ["name1"], ["name2"], mock_log_func)
 
 
-# --- Tests for `cli_logger` function ---
+# --- Tests for `cli_log` function ---
 
 # Description: Verifies that the `cli_logger` function correctly prints
 #              messages to standard output (stdout).
@@ -395,6 +398,25 @@ def test_cli_log(capsys):
     cli_log("CLI log message")
     captured = capsys.readouterr()
     assert captured.out == "CLI log message\n"
+
+
+# --- Tests for `show_help` function ---
+
+# Description: Verifies that the `show_help` function prints the correct
+#              usage message to stdout and then exits the program with
+#              status code 1.
+# Methodology:
+#     - Mocks `sys.exit` to prevent actual program termination.
+#     - Uses `capsys` to capture stdout.
+#     - Calls `show_help`.
+#     - Asserts that the captured stdout contains the expected "Usage:" message.
+#     - Asserts that `sys.exit` was called once with `1`.
+@patch("sys.exit")
+def test_show_help(mock_exit, capsys):
+    show_help()
+    captured = capsys.readouterr()
+    assert "Usage: python clone_project.py <src_dir> <dst_dir> <src_name1,src_name2,...> <dst_name1,dst_name2,...>" in captured.out
+    mock_exit.assert_called_once_with(1)
 
 
 # --- Tests for `run_cli` function ---
@@ -526,22 +548,3 @@ def test_run_cli_dst_exists_overwrite(
     assert "Total Files: 1" in captured.out
     assert "Names replaced: 1" in captured.out
     assert f"Operation completed successfully. New project location: {expected_dst_root}" in captured.out
-
-
-# --- Tests for `show_help` function ---
-
-# Description: Verifies that the `show_help` function prints the correct
-#              usage message to stdout and then exits the program with
-#              status code 1.
-# Methodology:
-#     - Mocks `sys.exit` to prevent actual program termination.
-#     - Uses `capsys` to capture stdout.
-#     - Calls `show_help`.
-#     - Asserts that the captured stdout contains the expected "Usage:" message.
-#     - Asserts that `sys.exit` was called once with `1`.
-@patch("sys.exit")
-def test_show_help(mock_exit, capsys):
-    show_help()
-    captured = capsys.readouterr()
-    assert "Usage: python clone_project.py <src_dir> <dst_dir> <src_name1,src_name2,...> <dst_name1,dst_name2,...>" in captured.out
-    mock_exit.assert_called_once_with(1)
