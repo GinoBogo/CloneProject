@@ -360,7 +360,12 @@ class CloneProjectGUI:
         self.style.configure("Status.TFrame", relief="flat")
         self.style.configure("Browse.TButton")
         self.style.configure("Clone.TButton")
-        self.style.configure("Horizontal.TProgressbar", thickness=20)
+        self.style.configure(
+            "Horizontal.TProgressbar",
+            thickness=20,
+            troughcolor="#D4EDDA",  # Light green for the trough
+            background="#28A745",  # Darker green for the progress bar
+        )
         self.style.map(
             "Browse.TButton",
             foreground=[("!disabled", "#FFFFFF")],
