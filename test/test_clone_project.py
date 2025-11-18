@@ -126,13 +126,6 @@ def test_get_dst_root_path_no_rename_target_dir_included(tmp_path):
 #     - Calls `replace_in_contents` to replace an "old_name" with a "new_name".
 #     - Asserts that the file's content has been updated as expected.
 #     - Asserts that the `mock_logger` was called with the "Updated contents of:" message.
-# Description: Verifies that the `replace_in_contents` function correctly
-#              replaces occurrences of a specified string within a text file.
-# Methodology:
-#     - Creates a temporary text file with known content using `tmp_path`.
-#     - Calls `replace_in_contents` to replace an "old_name" with a "new_name".
-#     - Asserts that the file's content has been updated as expected.
-#     - Asserts that the `mock_logger` was called with the "Updated contents of:" message.
 def test_replace_in_contents(tmp_path, mock_log_func):
     file_path = tmp_path / "test_file.txt"
     file_path.write_text("This is an old_name project.")
@@ -226,20 +219,6 @@ def test_replace_in_contents_binary_file(tmp_path, mock_log_func):
 #       correctly updated.
 #     - Asserts that the `mock_logger` was called with "Updated contents of:"
 #       messages for the modified files.
-# Description: Validates the end-to-end functionality of `copy_and_replace`,
-#              including directory creation, file copying, renaming of
-#              files/directories, and content replacement within files.
-# Methodology:
-#     - Sets up a dummy source directory structure with nested files and
-#       directories, some containing the "old_project_name".
-#     - Calls `copy_and_replace` to clone this structure to a destination,
-#       replacing "old_project_name" with "new_project_name".
-#     - Asserts that the destination directory and its renamed
-#       subdirectories/files exist.
-#     - Asserts that the content of the copied text files has been
-#       correctly updated.
-#     - Asserts that the `mock_logger` was called with "Updated contents of:"
-#       messages for the modified files.
 def test_copy_and_replace(tmp_path, mock_log_func):
     src_root_name = "old_project_name_src"
     dst_root_name = "new_project_name_dst"
@@ -295,13 +274,6 @@ def test_copy_and_replace(tmp_path, mock_log_func):
 #       simulating its existence.
 #     - Calls `validate_inputs` with valid paths and names.
 #     - The test passes if no `ValueError` is raised.
-# Description: Checks that `validate_inputs` does not raise any `ValueError`
-#              when provided with a set of valid input parameters.
-# Methodology:
-#     - Mocks `os.path.isdir` to return `True` for the source directory,
-#       simulating its existence.
-#     - Calls `validate_inputs` with valid paths and names.
-#     - The test passes if no `ValueError` is raised.
 @patch("os.path.isdir")
 def test_validate_inputs_valid(mock_isdir, mock_log_func):
     mock_isdir.return_value = True  # Mock source directory as existing
@@ -309,13 +281,7 @@ def test_validate_inputs_valid(mock_isdir, mock_log_func):
 
 
 # Description: Verifies that `validate_inputs` raises a `ValueError` with the
-#              specific message "All fields are required." when any of the
-#              input parameters are empty.
-# Methodology:
-#     - Uses `pytest.raises` to assert that `ValueError` is raised when
-#       `src_dir` or `dst_dir` are empty strings.
-# Description: Verifies that `validate_inputs` raises a `ValueError` with the
-#              specific message "All fields are required." when any of the
+#              specific message "All fields are required and must contain at least one name." when any of the
 #              input parameters are empty.
 # Methodology:
 #     - Uses `pytest.raises` to assert that `ValueError` is raised when
@@ -338,13 +304,6 @@ def test_validate_inputs_missing_fields(mock_log_func):
 #     - Uses `pytest.raises` to assert that `ValueError` is raised when a
 #       non-existent source directory is provided. (Note: `os.path.isdir` is
 #       not mocked here, so it behaves realistically for a non-existent path).
-# Description: Confirms that `validate_inputs` raises a `ValueError` with the
-#              message "Source directory 'non_existent_dir' not found." when
-#              the provided source directory does not exist.
-# Methodology:
-#     - Uses `pytest.raises` to assert that `ValueError` is raised when a
-#       non-existent source directory is provided. (Note: `os.path.isdir` is
-#       not mocked here, so it behaves realistically for a non-existent path).
 def test_validate_inputs_src_dir_not_found(mock_log_func):
     with pytest.raises(
         ValueError, match="Source directory 'non_existent_dir' not found."
@@ -352,13 +311,6 @@ def test_validate_inputs_src_dir_not_found(mock_log_func):
         validate_inputs("non_existent_dir", "/dst", ["old"], ["new"], mock_log_func)
 
 
-# Description: Verifies that `validate_inputs` raises a `ValueError` when the
-#              number of source names does not match the number of destination names.
-# Methodology:
-#     - Mocks `os.path.isdir` to return `True` for the source directory.
-#     - Calls `validate_inputs` with an unequal number of source and destination names.
-#     - Uses `pytest.raises` to assert that a `ValueError` with the correct
-#       message about name count mismatch is raised.
 # Description: Verifies that `validate_inputs` raises a `ValueError` when the
 #              number of source names does not match the number of destination names.
 # Methodology:
@@ -376,13 +328,6 @@ def test_validate_inputs_name_count_mismatch(mock_isdir, mock_log_func):
         validate_inputs("/src", "/dst", ["old_name"], ["new_name1", "new_name2"], mock_log_func)
 
 
-# Description: Checks that `validate_inputs` does not raise a `ValueError`
-#              when source and destination names are identical but the
-#              source and destination directories are different. This is a valid scenario.
-# Methodology:
-#     - Mocks `os.path.isdir` to return `True` for the source directory.
-#     - Calls `validate_inputs` with `src_dir != dst_dir` and `src_name == dst_name`.
-#     - The test passes if no `ValueError` is raised.
 # Description: Checks that `validate_inputs` does not raise a `ValueError`
 #              when source and destination names are identical but the
 #              source and destination directories are different. This is a valid scenario.
@@ -427,13 +372,6 @@ def test_validate_inputs_logs_warning_for_identical_names_different_dirs(mock_is
 #     - Calls `validate_inputs` with `src_dir == dst_dir`.
 #     - Uses `pytest.raises` to assert that a `ValueError` with the correct
 #       message "Source and destination directories cannot be the same." is raised.
-# Description: Verifies that `validate_inputs` raises a `ValueError` unconditionally
-#              when the source and destination directories are the same.
-# Methodology:
-#     - Mocks `os.path.isdir` to return `True`.
-#     - Calls `validate_inputs` with `src_dir == dst_dir`.
-#     - Uses `pytest.raises` to assert that a `ValueError` with the correct
-#       message "Source and destination directories cannot be the same." is raised.
 @patch("os.path.isdir")
 def test_validate_inputs_src_dst_same_dir_unconditional_error(mock_isdir, mock_log_func):
     mock_isdir.return_value = True  # Mock source directory as existing
@@ -453,13 +391,6 @@ def test_validate_inputs_src_dst_same_dir_unconditional_error(mock_isdir, mock_l
 #     - Calls `cli_logger` with a test message.
 #     - Asserts that the captured stdout matches the expected message
 #       followed by a newline.
-# Description: Verifies that the `cli_logger` function correctly prints
-#              messages to standard output (stdout).
-# Methodology:
-#     - Uses the `capsys` fixture to capture stdout.
-#     - Calls `cli_logger` with a test message.
-#     - Asserts that the captured stdout matches the expected message
-#       followed by a newline.
 def test_cli_log(capsys):
     cli_log("CLI log message")
     captured = capsys.readouterr()
@@ -468,18 +399,6 @@ def test_cli_log(capsys):
 
 # --- Tests for `run_cli` function ---
 
-# Description: Tests the successful execution path of `run_cli` when all
-#              inputs are valid and the destination does not initially exist.
-# Methodology:
-#     - Mocks `os.path.exists` to return `False` (destination does not exist).
-#     - Mocks `validate_inputs`, `copy_and_replace`, and `shutil.rmtree` to
-#       control their behavior.
-#     - Patches `sys.argv` to provide valid CLI arguments.
-#     - Calls `run_cli`.
-#     - Asserts that `validate_inputs` and `copy_and_replace` were called
-#       once with the correct arguments.
-#     - Asserts that `shutil.rmtree` was *not* called.
-#     - Asserts that the correct success messages are printed to stdout.
 # Description: Tests the successful execution path of `run_cli` when all
 #              inputs are valid and the destination does not initially exist.
 # Methodology:
@@ -524,16 +443,6 @@ def test_run_cli_success(
 #     - Asserts that `sys.exit` was called with `1`.
 #     - Asserts that the "Error: Invalid number of arguments" and "Usage:"
 #       messages are printed to stdout.
-# Description: Verifies that `run_cli` correctly handles an insufficient
-#              number of command-line arguments by logging an error,
-#              displaying help, and exiting with status code 1.
-# Methodology:
-#     - Mocks `sys.exit` to raise `SystemExit(1)` when called.
-#     - Uses `monkeypatch` to set `sys.argv` with missing arguments.
-#     - Uses `pytest.raises(SystemExit)` to catch the program exit.
-#     - Asserts that `sys.exit` was called with `1`.
-#     - Asserts that the "Error: Invalid number of arguments" and "Usage:"
-#       messages are printed to stdout.
 @patch("sys.exit")
 def test_run_cli_invalid_arguments(mock_exit, capsys, monkeypatch):
     mock_exit.side_effect = SystemExit(1)  # Configure mock_exit to raise SystemExit(1)
@@ -557,15 +466,6 @@ def test_run_cli_invalid_arguments(mock_exit, capsys, monkeypatch):
 #       the validation error.
 #     - Uses `pytest.raises(SystemExit)` to catch the program exit.
 #     - Asserts that the specific validation error message is printed to stdout.
-# Description: Checks that `run_cli` gracefully handles `ValueError`
-#              exceptions raised by `validate_inputs`, logging the error
-#              and exiting with status code 1.
-# Methodology:
-#     - Mocks `validate_inputs` to raise a `ValueError`.
-#     - Patches `sys.argv` with valid-looking arguments that would trigger
-#       the validation error.
-#     - Uses `pytest.raises(SystemExit)` to catch the program exit.
-#     - Asserts that the specific validation error message is printed to stdout.
 @patch("clone_project.validate_inputs")
 @patch("sys.argv", ["clone_project.py", "/src", "/dst", "old", "new"])
 def test_run_cli_validation_error(mock_validate_inputs, capsys):
@@ -578,16 +478,6 @@ def test_run_cli_validation_error(mock_validate_inputs, capsys):
     assert "Error: Test validation error." in captured.out
 
 
-# Description: Tests the scenario where the destination directory already
-#              exists in CLI mode, ensuring it's removed before cloning proceeds.
-# Methodology:
-#     - Mocks `os.path.exists` to return `True` (destination exists).
-#     - Mocks `shutil.rmtree` to verify its call.
-#     - Patches `sys.argv` to provide valid CLI arguments.
-#     - Calls `run_cli`.
-#     - Asserts that `shutil.rmtree` was called once with the destination path.
-#     - Asserts that the "Warning: Destination directory already exists. Overwriting..."
-#       message is printed to stdout.
 # Description: Tests the scenario where the destination directory already
 #              exists in CLI mode, ensuring it's removed before cloning proceeds.
 # Methodology:
@@ -640,15 +530,6 @@ def test_run_cli_dst_exists_overwrite(
 
 # --- Tests for `show_help` function ---
 
-# Description: Verifies that the `show_help` function prints the correct
-#              usage message to stdout and then exits the program with
-#              status code 1.
-# Methodology:
-#     - Mocks `sys.exit` to prevent actual program termination.
-#     - Uses `capsys` to capture stdout.
-#     - Calls `show_help`.
-#     - Asserts that the captured stdout contains the expected "Usage:" message.
-#     - Asserts that `sys.exit` was called once with `1`.
 # Description: Verifies that the `show_help` function prints the correct
 #              usage message to stdout and then exits the program with
 #              status code 1.
