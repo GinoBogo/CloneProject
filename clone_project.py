@@ -170,35 +170,50 @@ def copy_and_replace(
     for i, (src_name, dst_name) in enumerate(zip(src_names, dst_names), 1):
         logger(f"  {i}. '{src_name}' → '{dst_name}'")
 
-    # Handle the top-level directory rename separately
+    # Determine the actual destination root directory name
     src_dir_basename = os.path.basename(src_dir)
-    processed_src_dir_basename = src_dir_basename
+    processed_dst_root_name = src_dir_basename
     for src_name, dst_name in zip(src_names, dst_names):
-        processed_src_dir_basename = re.sub(
-            re.escape(src_name), dst_name, processed_src_dir_basename
+        processed_dst_root_name = re.sub(
+            re.escape(src_name), dst_name, processed_dst_root_name
         )
-    if processed_src_dir_basename != src_dir_basename:
-        folders_renamed += 1
+
+    # Construct the actual destination root path
+    actual_dst_root = os.path.join(dst_dir, processed_dst_root_name)
+
+    # Create the actual destination root directory
+    os.makedirs(actual_dst_root, exist_ok=True)
+    folders_created += 1  # Count the creation of the top-level destination directory
+
+    if processed_dst_root_name != src_dir_basename:
+        folders_renamed += 1  # Count the rename of the top-level directory
 
     for root, dirs, files in os.walk(src_dir, topdown=True):
+        # Calculate the relative path from the source root
+        # For the src_dir itself, rel_path will be '.'
         rel_path = os.path.relpath(root, src_dir)
 
-        # Calculate the processed relative path for the current directory
-        # This is needed to construct new_root
-        current_processed_rel_path_for_new_root = rel_path
-        for src_name, dst_name in zip(src_names, dst_names):
-            current_processed_rel_path_for_new_root = re.sub(
-                re.escape(src_name), dst_name, current_processed_rel_path_for_new_root
-            )
+        # If rel_path is '.', we are at the top-level source directory,
+        # which we've already handled for creation and renaming.
+        # We only need to process its subdirectories and files.
+        if rel_path == ".":
+            current_dst_base_path = actual_dst_root
+        else:
+            # Apply name replacements to the relative path
+            processed_rel_path = rel_path
+            for src_name, dst_name in zip(src_names, dst_names):
+                processed_rel_path = re.sub(
+                    re.escape(src_name), dst_name, processed_rel_path
+                )
 
-        new_root = os.path.join(dst_dir, current_processed_rel_path_for_new_root)
+            # Construct the new directory path in the destination
+            current_dst_base_path = os.path.join(actual_dst_root, processed_rel_path)
 
-        if not os.path.exists(new_root):
-            os.makedirs(new_root, exist_ok=True)
-            folders_created += 1
+            if not os.path.exists(current_dst_base_path):
+                os.makedirs(current_dst_base_path, exist_ok=True)
+                folders_created += 1
 
         # Iterate through subdirectories (dirs) to count renames
-        # This loop is for counting renamed *subdirectories*
         for d in dirs:
             original_dir_name = d
             processed_dir_name = original_dir_name
@@ -209,19 +224,14 @@ def copy_and_replace(
             if processed_dir_name != original_dir_name:
                 folders_renamed += 1
 
-        new_root = os.path.join(dst_dir, current_processed_rel_path)
-
-        if not os.path.exists(new_root):
-            os.makedirs(new_root, exist_ok=True)
-            folders_created += 1
-
         # Replace file names and copy files
         for file in files:
             src_file_path = os.path.join(root, file)
             new_file_name = file
             for src_name, dst_name in zip(src_names, dst_names):
                 new_file_name = re.sub(re.escape(src_name), dst_name, new_file_name)
-            dst_file_path = os.path.join(new_root, new_file_name)
+
+            dst_file_path = os.path.join(current_dst_base_path, new_file_name)
 
             shutil.copy2(src_file_path, dst_file_path)
             files_copied += 1
@@ -231,6 +241,8 @@ def copy_and_replace(
             )
             for i in range(len(src_names)):
                 words_replaced_counts[i] += file_replacement_counts[i]
+
+    return folders_created, files_copied, folders_renamed, words_replaced_counts
 
     return folders_created, files_copied, folders_renamed, words_replaced_counts
 
@@ -288,7 +300,7 @@ class CloneProjectGUI:
 
         # Initialize statistics variables
         self.directories_ratio = tk.StringVar(value="Directories: 0")
-        self.files_changed = tk.StringVar(value="Files: 0")
+        self.files_ratio = tk.StringVar(value="Files: 0")
         self.names_replaced = tk.StringVar(value="Names: 0")
 
         self.setup_ui()
@@ -406,7 +418,7 @@ class CloneProjectGUI:
         ttk.Label(status_bar, textvariable=self.directories_ratio, anchor="w").pack(
             side=tk.LEFT, padx=5
         )
-        ttk.Label(status_bar, textvariable=self.files_changed, anchor="w").pack(
+        ttk.Label(status_bar, textvariable=self.files_ratio, anchor="w").pack(
             side=tk.LEFT, padx=5
         )
         ttk.Label(status_bar, textvariable=self.names_replaced, anchor="w").pack(
@@ -489,10 +501,8 @@ class CloneProjectGUI:
             )
 
             # Update statistics
-            self.directories_ratio.set(
-                f"Directories: {folders_renamed}/{directories}"
-            )
-            self.files_changed.set(f"Files: {files}")
+            self.directories_ratio.set(f"Directories: {folders_renamed}/{directories}")
+            self.files_ratio.set(f"Files: {files}")
             self.names_replaced.set(
                 f"Names: {', '.join(map(str, names_replaced_list))}"
             )

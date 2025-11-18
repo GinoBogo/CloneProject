@@ -127,7 +127,7 @@ def test_replace_in_contents_binary_file(tmp_path, mock_logger):
 #     - Asserts that the `mock_logger` was called with "Updated contents of:"
 #       messages for the modified files.
 def test_copy_and_replace(tmp_path, mock_logger):
-    src_dir = tmp_path / "src_old_project"
+    src_dir = tmp_path / "old_project_name_src"
     dst_dir = tmp_path / "dst_new_project"
     src_dir.mkdir()
     (src_dir / "file1.txt").write_text("Content with old_project_name.")
@@ -141,20 +141,20 @@ def test_copy_and_replace(tmp_path, mock_logger):
     )
 
     assert dst_dir.exists()
-    assert (dst_dir / "file1.txt").read_text() == "Content with new_project_name."
-    assert (dst_dir / "new_project_name_dir").exists()
-    assert (dst_dir / "new_project_name_dir" / "file2.txt").read_text() == (
+    assert (dst_dir / "new_project_name_src" / "file1.txt").read_text() == "Content with new_project_name."
+    assert (dst_dir / "new_project_name_src" / "new_project_name_dir").exists()
+    assert (dst_dir / "new_project_name_src" / "new_project_name_dir" / "file2.txt").read_text() == (
         "Another new_project_name file."
     )
     assert folders_created == 2
     assert files_copied == 2
-    assert folders_renamed == 1
+    assert folders_renamed == 2
     assert words_replaced_counts == [2]
     mock_logger.assert_any_call(
-        f"Updated contents of: {(dst_dir / 'file1.txt').resolve()} (1 replacements)"
+        f"Updated contents of: {(dst_dir / 'new_project_name_src' / 'file1.txt').resolve()} (1 replacements)"
     )
     mock_logger.assert_any_call(
-        f"Updated contents of: {(dst_dir / 'new_project_name_dir' / 'file2.txt').resolve()} (1 replacements)"
+        f"Updated contents of: {(dst_dir / 'new_project_name_src' / 'new_project_name_dir' / 'file2.txt').resolve()} (1 replacements)"
     )
 
 
