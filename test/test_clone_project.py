@@ -376,7 +376,7 @@ def test_copy_and_replace(tmp_path, mock_log_func):
         src_names,
         dst_names,
         mock_log_func,
-        progress_callback=MagicMock(),
+        prog_cb=MagicMock(),
     )
 
     expected_dst_root = dst_parent_dir / dst_root_name
@@ -437,7 +437,7 @@ def test_copy_and_replace_progress_callback(tmp_path, mock_log_func):
         src_names,
         dst_names,
         mock_log_func,
-        progress_callback=mock_progress_callback,
+        prog_cb=mock_progress_callback,
     )
 
     # Expect 3 files to be processed
@@ -653,7 +653,7 @@ def test_run_cli_success(
         "/src", "/dst", ["old"], ["new"], cli_log
     )
     mock_copy_and_replace.assert_called_once_with(
-        "/src", "/dst", ["old"], ["new"], cli_log, progress_callback=ANY
+        "/src", "/dst", ["old"], ["new"], cli_log, prog_cb=ANY
     )
     captured = capsys.readouterr()
     assert "Replacement plan:" in captured.out
@@ -693,10 +693,10 @@ def test_run_cli_progress_callback(
 ):
     # Mock copy_and_replace to call the progress_callback
     def mock_copy_and_replace_side_effect(*args, **kwargs):
-        progress_cb = kwargs.get("progress_callback")
-        if progress_cb:
-            progress_cb("file", 1, 2)
-            progress_cb("file", 2, 2)
+        prog_cb = kwargs.get("prog_cb")
+        if prog_cb:
+            prog_cb("file", 1, 2)
+            prog_cb("file", 2, 2)
         return (
             1,
             2,
@@ -807,7 +807,7 @@ def test_run_cli_dst_exists_overwrite(
         ["old_proj"],
         ["new_proj"],
         cli_log,
-        progress_callback=ANY,
+        prog_cb=ANY,
     )
     captured = capsys.readouterr()
     assert "Replacement plan:" in captured.out

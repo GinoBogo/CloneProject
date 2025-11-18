@@ -207,7 +207,7 @@ def copy_and_replace(
     src_names: List[str],
     dst_names: List[str],
     log_func: Callable[[str, str], None],
-    progress_callback: Callable[[str, int, int], None],
+    prog_cb: Callable[[str, int, int], None],
 ) -> tuple[int, int, int, int, List[int]]:
     """Copy directory structure while replacing names in contents and filenames."""
     log_func("Replacement mapping:", "info")
@@ -278,8 +278,8 @@ def copy_and_replace(
             processed_files += 1
 
             # Update progress
-            if progress_callback:
-                progress_callback("file", processed_files, total_files_count)
+            if prog_cb:
+                prog_cb("file", processed_files, total_files_count)
 
             # Count filename rename
             if new_file_name != file_name:
@@ -617,7 +617,7 @@ class CloneProjectGUI:
             src_names,
             dst_names,
             self.gui_log,
-            progress_callback=self.update_progress,
+            prog_cb=self.update_progress,
         )
 
         # Update statistics
@@ -714,9 +714,8 @@ def run_cli() -> None:
         src_names,
         dst_names,
         cli_log,
-        progress_callback=cli_progress_callback,
+        prog_cb=cli_progress_callback,
     )
-
     # Clear the progress line and print final results
     sys.stdout.write("\r" + " " * 50 + "\r")
 
