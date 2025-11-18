@@ -574,6 +574,9 @@ class CloneProjectGUI:
 
             # Reset progress before starting
             self.reset_progress()
+            self.dir_var.set("Directories: 0")
+            self.file_var.set("Files: 0")
+            self.name_var.set("Names: 0")
 
             # Perform clone operation
             self.do_clone(src, dst, src_names, dst_names)
