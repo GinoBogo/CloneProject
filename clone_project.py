@@ -139,9 +139,12 @@ def process_file_content(
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(updated)
             norm_path = os.path.normpath(file_path)
-            log_func(f"Updated contents of: {norm_path} ({total_repl} replacements)")
+            log_func(
+                f"Updated contents of: {norm_path} ({total_repl} replacements)",
+                "normal",
+            )
             if len(repl_made) > 1:
-                log_func(f"  Breakdown: {', '.join(repl_made)}")
+                log_func(f"  Breakdown: {', '.join(repl_made)}", "normal")
 
         return counts
     except IOError:
@@ -191,9 +194,10 @@ def copy_and_replace(
     log_func: Callable[[str, str], None],
 ) -> tuple[int, int, int, int, List[int]]:
     """Copy directory structure while replacing names in contents and filenames."""
-    log_func("Replacement mapping:")
+    log_func("Replacement mapping:", "info")
+
     for i, (src, dst) in enumerate(zip(src_names, dst_names), 1):
-        log_func(f"  {i}. '{src}' → '{dst}'")
+        log_func(f"  {i}. '{src}' → '{dst}'", "info")
 
     dst_root, root_renamed = get_dst_root_path(src_dir, dst_dir, src_names, dst_names)
 
@@ -292,6 +296,12 @@ class CloneProjectGUI:
     def __init__(self) -> None:
         self.root = tk.Tk()
         self.root.title("Clone Project")
+
+        # Initialize attributes
+        self.src_entry = ttk.Entry()
+        self.dst_entry = ttk.Entry()
+        self.src_name_entry = ttk.Entry()
+        self.dst_name_entry = ttk.Entry()
 
         # Load window geometry
         self.cfg = configparser.ConfigParser()

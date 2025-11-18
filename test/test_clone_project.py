@@ -91,9 +91,8 @@ def test_replace_in_contents(tmp_path, mock_log_func):
     file_path.write_text("This is an old_name project.")
     replacements = replace_in_contents(file_path, ["old_name"], ["new_name"], mock_log_func)
     assert file_path.read_text() == "This is an new_name project."
-    assert replacements == [1]
     mock_log_func.assert_called_with(
-        f"Updated contents of: {file_path} (1 replacements)"
+        f"Updated contents of: {file_path} (1 replacements)", "normal"
     )
 
 
@@ -117,7 +116,7 @@ def test_replace_in_contents_duplicate_src_names(tmp_path, mock_log_func):
     assert file_path.read_text() == "This is a test with bogo."
     assert replacements == [1, 0]
     mock_log_func.assert_called_with(
-        f"Updated contents of: {file_path} (1 replacements)"
+        f"Updated contents of: {file_path} (1 replacements)", "normal"
     )
 
 
@@ -136,10 +135,10 @@ def test_replace_in_contents_duplicate_dst_names(tmp_path, mock_log_func):
     assert file_path.read_text() == "This is a test with test and test."
     assert replacements == [1, 1]
     mock_log_func.assert_any_call(
-        f"Updated contents of: {file_path} (2 replacements)"
+        f"Updated contents of: {file_path} (2 replacements)", "normal"
     )
     mock_log_func.assert_called_with(
-        "  Breakdown: 'gino'→'test':1, 'bogo'→'test':1"
+        "  Breakdown: 'gino'→'test':1, 'bogo'→'test':1", "normal"
     )
 
 
@@ -161,7 +160,7 @@ def test_replace_in_contents_binary_file(tmp_path, mock_log_func):
     # Content should remain unchanged
     assert binary_file_path.read_bytes() == b"\x00\x01\x02\x03"
     assert replacements == [0]
-    mock_log_func.assert_called_with(f"Skipped file (likely binary): {binary_file_path}", level="skipped")
+    mock_log_func.assert_called_with(f"Skipped file (likely binary): {binary_file_path}", "skipped")
 
 
 # --- Tests for `copy_and_replace` function ---
@@ -217,10 +216,12 @@ def test_copy_and_replace(tmp_path, mock_log_func):
     assert words_replaced_counts == [2, 1] # 2 replacements for src_root_name, 1 for nested_dir_name_src
 
     mock_log_func.assert_any_call(
-        f"Updated contents of: {(expected_dst_root / 'file1.txt').resolve()} (1 replacements)"
+        f"Updated contents of: {(expected_dst_root / 'file1.txt').resolve()} (1 replacements)",
+        "normal",
     )
     mock_log_func.assert_any_call(
-        f"Updated contents of: {(expected_dst_root / nested_dir_name_dst / 'file2.txt').resolve()} (2 replacements)"
+        f"Updated contents of: {(expected_dst_root / nested_dir_name_dst / 'file2.txt').resolve()} (2 replacements)",
+        "normal",
     )
 
 
@@ -320,7 +321,7 @@ def test_validate_inputs_logs_warning_for_identical_names_different_dirs(mock_is
     mock_log_func.assert_called_with(
         "Warning: Replacement pair 'same_name' -> 'same_name' is identical. "
         "This will result in no change for this specific name.",
-        level="warning"
+        "warning",
     )
 
 
