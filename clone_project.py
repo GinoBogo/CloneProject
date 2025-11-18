@@ -14,7 +14,7 @@ import shutil
 import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
-
+from typing import Callable, List
 
 # ==============================================================================
 # CONSTANTS
@@ -31,7 +31,7 @@ BUTTON_WIDTH = 10
 # ==============================================================================
 
 
-def parse_name_list(names_str):
+def parse_name_list(names_str: str) -> List[str]:
     """Parse comma-separated names into a list, handling whitespace and empty entries."""
     if not names_str or not names_str.strip():
         return []
@@ -41,7 +41,13 @@ def parse_name_list(names_str):
     return [name for name in names if name]
 
 
-def validate_inputs(src_dir, dst_dir, src_names, dst_names, logger):
+def validate_inputs(
+    src_dir: str,
+    dst_dir: str,
+    src_names: List[str],
+    dst_names: List[str],
+    logger: Callable[[str, str], None],
+) -> None:
     """Validate all input parameters."""
     if not all([src_dir, dst_dir]) or not src_names or not dst_names:
         raise ValueError("All fields are required and must contain at least one name.")
@@ -75,7 +81,7 @@ def validate_inputs(src_dir, dst_dir, src_names, dst_names, logger):
         raise ValueError("Source and destination directories cannot be the same.")
 
 
-def show_help():
+def show_help() -> None:
     """Display CLI usage information."""
     print(
         "Usage: python clone_project.py <src_dir> <dst_dir> <src_name1,src_name2,...> <dst_name1,dst_name2,...>"
@@ -96,7 +102,12 @@ def show_help():
 # ==============================================================================
 
 
-def replace_in_contents(file_path, src_names, dst_names, logger):
+def replace_in_contents(
+    file_path: str,
+    src_names: List[str],
+    dst_names: List[str],
+    logger: Callable[[str, str], None],
+) -> List[int]:
     """Replace text content in a file, skipping binary/unreadable files."""
     total_replacements = 0
     replacement_counts_per_name = [0] * len(src_names)
@@ -141,7 +152,13 @@ def replace_in_contents(file_path, src_names, dst_names, logger):
         return replacement_counts_per_name
 
 
-def copy_and_replace(src_dir, dst_dir, src_names, dst_names, logger):
+def copy_and_replace(
+    src_dir: str,
+    dst_dir: str,
+    src_names: List[str],
+    dst_names: List[str],
+    logger: Callable[[str, str], None],
+) -> tuple[int, int, List[int]]:
     """Copy directory structure while replacing names in contents and filenames."""
     folders_created = 0
     files_copied = 0
@@ -180,7 +197,7 @@ def copy_and_replace(src_dir, dst_dir, src_names, dst_names, logger):
 
             shutil.copy2(src_file_path, dst_file_path)
             files_copied += 1
-            
+
             file_replacement_counts = replace_in_contents(
                 dst_file_path, src_names, dst_names, logger
             )
@@ -195,7 +212,7 @@ def copy_and_replace(src_dir, dst_dir, src_names, dst_names, logger):
 # ==============================================================================
 
 
-def cli_logger(message, level="normal"):
+def cli_logger(message: str, level: str = "normal") -> None:
     """Simple logger for CLI mode."""
     print(message)
 
@@ -210,7 +227,7 @@ class CloneProjectGUI:
 
     CONFIG_FILE = "clone_project.cfg"
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.root = tk.Tk()
         self.root.title("Clone Project")
 
@@ -249,7 +266,7 @@ class CloneProjectGUI:
         self.setup_ui()
         self.root.protocol("WM_DELETE_WINDOW", self._save_and_exit)
 
-    def setup_ui(self):
+    def setup_ui(self) -> None:
         """Initialize all GUI components."""
         main_frame = ttk.Frame(self.root, padding=(10, 10))
         main_frame.pack(fill=tk.BOTH, expand=True)
@@ -261,7 +278,7 @@ class CloneProjectGUI:
         self.setup_status_bar(main_frame)
         self.configure_layout(main_frame)
 
-    def setup_input_fields(self, parent):
+    def setup_input_fields(self, parent: ttk.Frame) -> None:
         """Create and arrange input fields with labels."""
         # Source directory
         ttk.Label(parent, text="Source Directory:", width=LABEL_WIDTH, anchor="e").grid(
@@ -291,7 +308,7 @@ class CloneProjectGUI:
         self.dst_name_entry = ttk.Entry(parent, width=ENTRY_WIDTH)
         self.dst_name_entry.grid(row=3, column=1, padx=5, pady=5, sticky="we")
 
-    def setup_buttons(self, parent):
+    def setup_buttons(self, parent: ttk.Frame) -> None:
         """Create control buttons."""
         browse_src_button = ttk.Button(
             parent,
@@ -327,7 +344,7 @@ class CloneProjectGUI:
         clone_button.bind("<Enter>", self.on_enter)
         clone_button.bind("<Leave>", self.on_leave)
 
-    def setup_log_area(self, parent):
+    def setup_log_area(self, parent: ttk.Frame) -> None:
         """Create logging text area with scrollbar."""
         self.log_text = tk.Text(parent, height=10, state="disabled", wrap="none")
         self.log_text.grid(row=5, column=0, columnspan=3, pady=(10, 0), sticky="nsew")
@@ -353,7 +370,7 @@ class CloneProjectGUI:
         y_scrollbar.grid(row=5, column=3, sticky="ns")
         self.log_text.configure(yscrollcommand=y_scrollbar.set)
 
-    def setup_status_bar(self, parent):
+    def setup_status_bar(self, parent: ttk.Frame) -> None:
         """Create the status bar."""
         status_bar = ttk.Frame(parent, style="Status.TFrame")
         status_bar.grid(row=7, column=0, columnspan=4, sticky="ew", pady=(5, 0))
@@ -368,19 +385,19 @@ class CloneProjectGUI:
             side=tk.LEFT, padx=5
         )
 
-    def configure_layout(self, parent):
+    def configure_layout(self, parent: ttk.Frame) -> None:
         """Configure grid weights for responsive layout."""
         parent.columnconfigure(1, weight=1)
         parent.rowconfigure(5, weight=1)
 
-    def browse_dir(self, entry_widget):
+    def browse_dir(self, entry_widget: ttk.Entry) -> None:
         """Open directory browser and update entry field."""
         path = filedialog.askdirectory()
         if path:
             entry_widget.delete(0, tk.END)
             entry_widget.insert(0, path)
 
-    def gui_logger(self, message, level="normal"):
+    def gui_logger(self, message: str, level: str = "normal") -> None:
         """Log messages to the GUI text area."""
         self.log_text.configure(state="normal")
         if level == "error":
@@ -398,15 +415,15 @@ class CloneProjectGUI:
         self.log_text.see(tk.END)
         self.log_text.configure(state="disabled")
 
-    def on_enter(self, event):
+    def on_enter(self, event: tk.Event) -> None:
         """Change cursor to hand."""
         self.root.config(cursor="hand2")
 
-    def on_leave(self, event):
+    def on_leave(self, event: tk.Event) -> None:
         """Change cursor back to default."""
         self.root.config(cursor="")
 
-    def run_clone(self):
+    def run_clone(self) -> None:
         """Execute the clone operation from GUI inputs."""
         try:
             src_dir = os.path.abspath(self.src_entry.get().strip())
@@ -446,7 +463,9 @@ class CloneProjectGUI:
             # Update statistics
             self.directories_created.set(f"Directories: {directories}")
             self.files_changed.set(f"Files: {files}")
-            self.names_replaced.set(f"Names: {', '.join(map(str, names_replaced_list))}")
+            self.names_replaced.set(
+                f"Names: {', '.join(map(str, names_replaced_list))}"
+            )
 
             self.gui_logger(
                 f"Operation completed successfully. New project location: {dst_dir}",
@@ -458,7 +477,7 @@ class CloneProjectGUI:
             self.gui_logger(f"Error: {e}", level="error")
             messagebox.showerror("Error", str(e))
 
-    def _save_and_exit(self):
+    def _save_and_exit(self) -> None:
         """Save window geometry and exit."""
         if not self.config.has_section("window"):
             self.config.add_section("window")
@@ -467,7 +486,7 @@ class CloneProjectGUI:
             self.config.write(configfile)
         self.root.destroy()
 
-    def run(self):
+    def run(self) -> None:
         """Start the GUI application."""
         self.root.mainloop()
 
@@ -477,7 +496,7 @@ class CloneProjectGUI:
 # ==============================================================================
 
 
-def run_cli():
+def run_cli() -> None:
     """Execute the clone operation in CLI mode."""
     if len(sys.argv) != 5:
         cli_logger("Error: Invalid number of arguments")
@@ -524,7 +543,7 @@ def run_cli():
     cli_logger(f"Operation completed successfully. New project location: {dst_dir}")
 
 
-def run_gui():
+def run_gui() -> None:
     """Launch the GUI interface."""
     app = CloneProjectGUI()
     app.run()
