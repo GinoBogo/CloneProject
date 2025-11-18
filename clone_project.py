@@ -7,6 +7,7 @@ filenames.
 Author: Gino Bogo
 """
 
+import configparser
 import os
 import re
 import shutil
@@ -202,9 +203,20 @@ def cli_logger(message, level="normal"):
 class CloneProjectGUI:
     """Tkinter GUI for the clone project utility."""
 
+    CONFIG_FILE = "clone_project.cfg"
+
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("Clone Project")
+
+        # Load window geometry
+        self.config = configparser.ConfigParser()
+        if os.path.exists(self.CONFIG_FILE):
+            self.config.read(self.CONFIG_FILE)
+            geometry = self.config.get("window", "geometry", fallback=None)
+            if geometry:
+                self.root.geometry(geometry)
+        
         self.root.minsize(*MIN_WINDOW_SIZE)
 
         # Configure ttk style
@@ -230,6 +242,8 @@ class CloneProjectGUI:
         self.names_replaced = tk.StringVar(value="Names: 0")
 
         self.setup_ui()
+        self.root.protocol("WM_DELETE_WINDOW", self._save_and_exit)
+
 
     def setup_ui(self):
         """Initialize all GUI components."""
@@ -439,6 +453,15 @@ class CloneProjectGUI:
         except Exception as e:
             self.gui_logger(f"Error: {e}", level="error")
             messagebox.showerror("Error", str(e))
+
+    def _save_and_exit(self):
+        """Save window geometry and exit."""
+        if not self.config.has_section("window"):
+            self.config.add_section("window")
+        self.config.set("window", "geometry", self.root.geometry())
+        with open(self.CONFIG_FILE, "w") as configfile:
+            self.config.write(configfile)
+        self.root.destroy()
 
     def run(self):
         """Start the GUI application."""
