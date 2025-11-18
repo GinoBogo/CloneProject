@@ -67,13 +67,12 @@ def validate_inputs(
         if not dst_name:
             raise ValueError(f"Destination name #{i} cannot be empty.")
 
-        if src_name == dst_name:
-            if src_dir != dst_dir:
-                logger(
-                    f"Warning: Replacement pair '{src_name}' -> '{dst_name}' is identical. "
-                    "This will result in no change for this specific name.",
-                    level="warning",
-                )
+        if src_name == dst_name and src_dir != dst_dir:
+            logger(
+                f"Warning: Replacement pair '{src_name}' -> '{dst_name}' is identical. "
+                "This will result in no change for this specific name.",
+                level="warning",
+            )
 
     # Check for directory conflicts
     if src_dir == dst_dir:
@@ -101,17 +100,17 @@ def show_help() -> None:
 # ==============================================================================
 
 
-def replace_in_contents(
+def process_file_content(
     file_path: str,
     src_names: List[str],
     dst_names: List[str],
     logger: Callable[[str, str], None],
 ) -> List[int]:
-    """Replace text content in a file, skipping binary/unreadable files."""
-    total_replacements = 0
+    """Process file content replacements."""
     replacement_counts_per_name = [0] * len(src_names)
+
     try:
-        with open(file_path, "rb") as f:  # Open in binary mode
+        with open(file_path, "rb") as f:
             content_bytes = f.read()
 
         # Heuristic: if null byte is present, assume binary
@@ -126,6 +125,7 @@ def replace_in_contents(
             return replacement_counts_per_name
 
         updated_content = content
+        total_replacements = 0
         replacements_made = []
 
         for i, (src_name, dst_name) in enumerate(zip(src_names, dst_names)):
@@ -145,75 +145,81 @@ def replace_in_contents(
             )
             if len(replacements_made) > 1:
                 logger(f"  Breakdown: {', '.join(replacements_made)}")
+
         return replacement_counts_per_name
     except IOError:
         logger(f"Skipped file (IO Error): {file_path}", level="skipped")
         return replacement_counts_per_name
 
 
-def copy_and_replace(
+def replace_in_contents(
+    file_path: str,
+    src_names: List[str],
+    dst_names: List[str],
+    logger: Callable[[str, str], None],
+) -> List[int]:
+    """Replace text content in a file, skipping binary/unreadable files."""
+    return process_file_content(file_path, src_names, dst_names, logger)
+
+
+def process_directory_structure(
     src_dir: str,
     dst_dir: str,
     src_names: List[str],
     dst_names: List[str],
     logger: Callable[[str, str], None],
-) -> tuple[int, int, int, int, List[int]]:
-    """Copy directory structure while replacing names in contents and filenames."""
-    total_directories = 0
-    total_files = 0
-    directories_renamed = 0
-    files_renamed = 0  # Initialized files_renamed
-    names_replaced_list = [0] * len(src_names)
-
-    # Log replacement mapping for clarity
-    logger("Replacement mapping:")
-    for i, (src_name, dst_name) in enumerate(zip(src_names, dst_names), 1):
-        logger(f"  {i}. '{src_name}' → '{dst_name}'")
-
-    # Determine the actual destination root directory name
+) -> tuple[str, int, int]:
+    """Process directory structure creation and counting."""
     src_dir_basename = os.path.basename(src_dir)
     processed_dst_root_name = src_dir_basename
+
     for src_name, dst_name in zip(src_names, dst_names):
         processed_dst_root_name = re.sub(
             re.escape(src_name), dst_name, processed_dst_root_name
         )
 
-    # Construct the actual destination root path
     actual_dst_root = os.path.join(dst_dir, processed_dst_root_name)
-
-    # Create the actual destination root directory
     os.makedirs(actual_dst_root, exist_ok=True)
-    total_directories += 1  # Count the creation of the top-level destination directory
 
-    if processed_dst_root_name != src_dir_basename:
-        directories_renamed += 1  # Count the rename of the top-level directory
+    total_directories = 1
+    directories_renamed = 1 if processed_dst_root_name != src_dir_basename else 0
+
+    return actual_dst_root, total_directories, directories_renamed
+
+
+def process_directories_and_files(
+    src_dir: str,
+    actual_dst_root: str,
+    src_names: List[str],
+    dst_names: List[str],
+    logger: Callable[[str, str], None],
+    total_directories: int,
+    directories_renamed: int,
+) -> tuple[int, int, int, int, List[int]]:
+    """Process all directories and files during copy operation."""
+    total_files = 0
+    files_renamed = 0
+    names_replaced_list = [0] * len(src_names)
 
     for root, dirs, files in os.walk(src_dir, topdown=True):
-        # Calculate the relative path from the source root
-        # For the src_dir itself, rel_path will be '.'
         rel_path = os.path.relpath(root, src_dir)
 
-        # If rel_path is '.', we are at the top-level source directory,
-        # which we've already handled for creation and renaming.
-        # We only need to process its subdirectories and files.
         if rel_path == ".":
             current_dst_base_path = actual_dst_root
         else:
-            # Apply name replacements to the relative path
             processed_rel_path = rel_path
             for src_name, dst_name in zip(src_names, dst_names):
                 processed_rel_path = re.sub(
                     re.escape(src_name), dst_name, processed_rel_path
                 )
 
-            # Construct the new directory path in the destination
             current_dst_base_path = os.path.join(actual_dst_root, processed_rel_path)
 
             if not os.path.exists(current_dst_base_path):
                 os.makedirs(current_dst_base_path, exist_ok=True)
                 total_directories += 1
 
-        # Iterate through subdirectories (dirs) to count renames
+        # Count directory renames
         for d in dirs:
             original_dir_name = d
             processed_dir_name = original_dir_name
@@ -224,27 +230,94 @@ def copy_and_replace(
             if processed_dir_name != original_dir_name:
                 directories_renamed += 1
 
-        # Replace file names and copy files
+        # Process files
         for file in files:
-            src_file_path = os.path.join(root, file)
-            new_file_name = file
-            for src_name, dst_name in zip(src_names, dst_names):
-                new_file_name = re.sub(re.escape(src_name), dst_name, new_file_name)
-
-            if new_file_name != file:  # Check if file name was changed
-                files_renamed += 1
-
-            dst_file_path = os.path.join(current_dst_base_path, new_file_name)
-
-            shutil.copy2(src_file_path, dst_file_path)
-            total_files += 1  # Increment total_files for each file copied
-
-            # Replace content in the new file
-            file_replacements = replace_in_contents(
-                dst_file_path, src_names, dst_names, logger
+            total_files, files_renamed, names_replaced_list = process_single_file(
+                root,
+                file,
+                current_dst_base_path,
+                src_names,
+                dst_names,
+                logger,
+                total_files,
+                files_renamed,
+                names_replaced_list,
             )
-            for i, count in enumerate(file_replacements):
-                names_replaced_list[i] += count
+
+    return (
+        total_directories,
+        total_files,
+        directories_renamed,
+        files_renamed,
+        names_replaced_list,
+    )
+
+
+def process_single_file(
+    root: str,
+    file: str,
+    current_dst_base_path: str,
+    src_names: List[str],
+    dst_names: List[str],
+    logger: Callable[[str, str], None],
+    total_files: int,
+    files_renamed: int,
+    names_replaced_list: List[int],
+) -> tuple[int, int, List[int]]:
+    """Process a single file during copy operation."""
+    src_file_path = os.path.join(root, file)
+    new_file_name = file
+
+    for src_name, dst_name in zip(src_names, dst_names):
+        new_file_name = re.sub(re.escape(src_name), dst_name, new_file_name)
+
+    if new_file_name != file:
+        files_renamed += 1
+
+    dst_file_path = os.path.join(current_dst_base_path, new_file_name)
+    shutil.copy2(src_file_path, dst_file_path)
+    total_files += 1
+
+    file_replacements = replace_in_contents(dst_file_path, src_names, dst_names, logger)
+
+    for i, count in enumerate(file_replacements):
+        names_replaced_list[i] += count
+
+    return total_files, files_renamed, names_replaced_list
+
+
+def copy_and_replace(
+    src_dir: str,
+    dst_dir: str,
+    src_names: List[str],
+    dst_names: List[str],
+    logger: Callable[[str, str], None],
+) -> tuple[int, int, int, int, List[int]]:
+    """Copy directory structure while replacing names in contents and filenames."""
+    logger("Replacement mapping:")
+    for i, (src_name, dst_name) in enumerate(zip(src_names, dst_names), 1):
+        logger(f"  {i}. '{src_name}' → '{dst_name}'")
+
+    actual_dst_root, total_directories, directories_renamed = (
+        process_directory_structure(src_dir, dst_dir, src_names, dst_names, logger)
+    )
+
+    (
+        total_directories,
+        total_files,
+        directories_renamed,
+        files_renamed,
+        names_replaced_list,
+    ) = process_directories_and_files(
+        src_dir,
+        actual_dst_root,
+        src_names,
+        dst_names,
+        logger,
+        total_directories,
+        directories_renamed,
+    )
+
     return (
         total_directories,
         total_files,
@@ -289,6 +362,18 @@ class CloneProjectGUI:
         self.root.minsize(*MIN_WINDOW_SIZE)
 
         # Configure ttk style
+        self.setup_style()
+
+        # Initialize statistics variables
+        self.directories_ratio = tk.StringVar(value="Directories: 0")
+        self.files_ratio = tk.StringVar(value="Files: 0")
+        self.names_replaced = tk.StringVar(value="Names: 0")
+
+        self.setup_ui()
+        self.root.protocol("WM_DELETE_WINDOW", self._save_and_exit)
+
+    def setup_style(self) -> None:
+        """Configure ttk styles."""
         self.style = ttk.Style()
         self.style.theme_use("clam")
         self.style.configure("Status.TFrame", relief="flat")
@@ -305,14 +390,6 @@ class CloneProjectGUI:
             background=[("active", "#E0B400"), ("!active", "#C79F00")],
         )
 
-        # Initialize statistics variables
-        self.directories_ratio = tk.StringVar(value="Directories: 0")
-        self.files_ratio = tk.StringVar(value="Files: 0")
-        self.names_replaced = tk.StringVar(value="Names: 0")
-
-        self.setup_ui()
-        self.root.protocol("WM_DELETE_WINDOW", self._save_and_exit)
-
     def setup_ui(self) -> None:
         """Initialize all GUI components."""
         main_frame = ttk.Frame(self.root, padding=(10, 10))
@@ -327,60 +404,39 @@ class CloneProjectGUI:
 
     def setup_input_fields(self, parent: ttk.Frame) -> None:
         """Create and arrange input fields with labels."""
-        # Source directory
-        ttk.Label(parent, text="Source Directory:", width=LABEL_WIDTH, anchor="e").grid(
-            row=0, column=0, sticky="e"
-        )
-        self.src_entry = ttk.Entry(parent, width=ENTRY_WIDTH)
-        self.src_entry.grid(row=0, column=1, padx=5, pady=5, sticky="we")
+        fields = [
+            ("Source Directory:", "src_entry"),
+            ("Destination Directory:", "dst_entry"),
+            ("Source Name(s):", "src_name_entry"),
+            ("Destination Name(s):", "dst_name_entry"),
+        ]
 
-        # Destination directory
-        ttk.Label(
-            parent, text="Destination Directory:", width=LABEL_WIDTH, anchor="e"
-        ).grid(row=1, column=0, sticky="e")
-        self.dst_entry = ttk.Entry(parent, width=ENTRY_WIDTH)
-        self.dst_entry.grid(row=1, column=1, padx=5, pady=5, sticky="we")
-
-        # Source names
-        ttk.Label(parent, text="Source Name(s):", width=LABEL_WIDTH, anchor="e").grid(
-            row=2, column=0, sticky="e"
-        )
-        self.src_name_entry = ttk.Entry(parent, width=ENTRY_WIDTH)
-        self.src_name_entry.grid(row=2, column=1, padx=5, pady=5, sticky="we")
-
-        # Destination names
-        ttk.Label(
-            parent, text="Destination Name(s):", width=LABEL_WIDTH, anchor="e"
-        ).grid(row=3, column=0, sticky="e")
-        self.dst_name_entry = ttk.Entry(parent, width=ENTRY_WIDTH)
-        self.dst_name_entry.grid(row=3, column=1, padx=5, pady=5, sticky="we")
+        for row, (label_text, attr_name) in enumerate(fields):
+            ttk.Label(parent, text=label_text, width=LABEL_WIDTH, anchor="e").grid(
+                row=row, column=0, sticky="e"
+            )
+            entry = ttk.Entry(parent, width=ENTRY_WIDTH)
+            entry.grid(row=row, column=1, padx=5, pady=5, sticky="we")
+            setattr(self, attr_name, entry)
 
     def setup_buttons(self, parent: ttk.Frame) -> None:
         """Create control buttons."""
-        browse_src_button = ttk.Button(
-            parent,
-            text="Browse",
-            command=lambda: self.browse_dir(self.src_entry),
-            width=BUTTON_WIDTH,
-            style="Browse.TButton",
-        )
-        browse_src_button.grid(row=0, column=2, padx=5, pady=5)
-        browse_src_button.bind("<Enter>", self.on_enter)
-        browse_src_button.bind("<Leave>", self.on_leave)
+        browse_buttons = [
+            ("Browse", lambda: self.browse_dir(self.src_entry), 0),
+            ("Browse", lambda: self.browse_dir(self.dst_entry), 1),
+        ]
 
-        # Browse Destination button
-        browse_dst_button = ttk.Button(
-            parent,
-            text="Browse",
-            command=lambda: self.browse_dir(self.dst_entry),
-            width=BUTTON_WIDTH,
-            style="Browse.TButton",
-        )
-        browse_dst_button.grid(row=1, column=2, padx=5, pady=5)
-        browse_dst_button.bind("<Enter>", self.on_enter)
-        browse_dst_button.bind("<Leave>", self.on_leave)
+        for text, command, row in browse_buttons:
+            button = ttk.Button(
+                parent,
+                text=text,
+                command=command,
+                width=BUTTON_WIDTH,
+                style="Browse.TButton",
+            )
+            button.grid(row=row, column=2, padx=5, pady=5)
+            self.bind_button_events(button)
 
-        # Clone Project button
         clone_button = ttk.Button(
             parent,
             text="Clone Project",
@@ -388,8 +444,12 @@ class CloneProjectGUI:
             style="Clone.TButton",
         )
         clone_button.grid(row=4, column=0, columnspan=3, pady=(10, 5), sticky="we")
-        clone_button.bind("<Enter>", self.on_enter)
-        clone_button.bind("<Leave>", self.on_leave)
+        self.bind_button_events(clone_button)
+
+    def bind_button_events(self, button: ttk.Button) -> None:
+        """Bind common button events."""
+        button.bind("<Enter>", self.on_enter)
+        button.bind("<Leave>", self.on_leave)
 
     def setup_log_area(self, parent: ttk.Frame) -> None:
         """Create logging text area with scrollbar."""
@@ -397,20 +457,32 @@ class CloneProjectGUI:
         self.log_text.grid(row=5, column=0, columnspan=3, pady=(10, 0), sticky="nsew")
 
         # Configure text tags for different message levels
-        self.log_text.tag_configure("error", foreground="red")
-        self.log_text.tag_configure("warning", foreground="orange")
-        self.log_text.tag_configure("info", foreground="blue")
-        self.log_text.tag_configure("success", foreground="green")
-        self.log_text.tag_configure("skipped", foreground="darkgray")
+        self.setup_log_tags()
 
-        # Horizontal scrollbar
+        # Scrollbars
+        self.setup_scrollbars(parent)
+
+    def setup_log_tags(self) -> None:
+        """Configure text tags for different log levels."""
+        tags = {
+            "error": "red",
+            "warning": "orange",
+            "info": "blue",
+            "success": "green",
+            "skipped": "darkgray",
+        }
+
+        for tag, color in tags.items():
+            self.log_text.tag_configure(tag, foreground=color)
+
+    def setup_scrollbars(self, parent: ttk.Frame) -> None:
+        """Setup horizontal and vertical scrollbars."""
         x_scrollbar = ttk.Scrollbar(
             parent, orient=tk.HORIZONTAL, command=self.log_text.xview
         )
         x_scrollbar.grid(row=6, column=0, columnspan=3, sticky="ew")
         self.log_text.configure(xscrollcommand=x_scrollbar.set)
 
-        # Vertical scrollbar
         y_scrollbar = ttk.Scrollbar(
             parent, orient=tk.VERTICAL, command=self.log_text.yview
         )
@@ -422,15 +494,12 @@ class CloneProjectGUI:
         status_bar = ttk.Frame(parent, style="Status.TFrame")
         status_bar.grid(row=7, column=0, columnspan=4, sticky="ew", pady=(5, 0))
 
-        ttk.Label(status_bar, textvariable=self.directories_ratio, anchor="w").pack(
-            side=tk.LEFT, padx=5
-        )
-        ttk.Label(status_bar, textvariable=self.files_ratio, anchor="w").pack(
-            side=tk.LEFT, padx=5
-        )
-        ttk.Label(status_bar, textvariable=self.names_replaced, anchor="w").pack(
-            side=tk.LEFT, padx=5
-        )
+        status_vars = [self.directories_ratio, self.files_ratio, self.names_replaced]
+
+        for var in status_vars:
+            ttk.Label(status_bar, textvariable=var, anchor="w").pack(
+                side=tk.LEFT, padx=5
+            )
 
     def configure_layout(self, parent: ttk.Frame) -> None:
         """Configure grid weights for responsive layout."""
@@ -447,18 +516,15 @@ class CloneProjectGUI:
     def gui_logger(self, message: str, level: str = "normal") -> None:
         """Log messages to the GUI text area."""
         self.log_text.configure(state="normal")
-        if level == "error":
-            self.log_text.insert(tk.END, f"{message}\n", "error")
-        elif level == "warning":
-            self.log_text.insert(tk.END, f"{message}\n", "warning")
-        elif level == "info":
-            self.log_text.insert(tk.END, f"{message}\n", "info")
-        elif level == "success":
-            self.log_text.insert(tk.END, f"{message}\n", "success")
-        elif level == "skipped":
-            self.log_text.insert(tk.END, f"{message}\n", "skipped")
-        else:
-            self.log_text.insert(tk.END, f"{message}\n")
+
+        tag = (
+            level
+            if level in ["error", "warning", "info", "success", "skipped"]
+            else None
+        )
+        insert_args = (tk.END, f"{message}\n", tag) if tag else (tk.END, f"{message}\n")
+
+        self.log_text.insert(*insert_args)
         self.log_text.see(tk.END)
         self.log_text.configure(state="disabled")
 
@@ -479,58 +545,69 @@ class CloneProjectGUI:
             dst_names = parse_name_list(self.dst_name_entry.get().strip())
 
             validate_inputs(src_dir, dst_dir, src_names, dst_names, self.gui_logger)
-
-            # Log the replacement plan
-            self.gui_logger("Replacement plan:", level="info")
-            for i, (src_name, dst_name) in enumerate(zip(src_names, dst_names), 1):
-                self.gui_logger(f"  {i}. '{src_name}' → '{dst_name}'", level="info")
-
-            if len(src_names) > 1:
-                self.gui_logger(
-                    "Note: Replacements are processed in order. Be careful with overlapping patterns.",
-                    level="info",
-                )
+            self.log_replacement_plan(src_names, dst_names)
 
             # Handle existing destination
             if os.path.exists(dst_dir):
-                overwrite = messagebox.askyesno(
-                    "Destination exists",
-                    f"Destination '{dst_dir}' already exists. Overwrite?",
-                )
-                if not overwrite:
+                if not self.confirm_overwrite(dst_dir):
                     return
                 shutil.rmtree(dst_dir)
 
             # Perform clone operation
-            self.gui_logger("Starting clone operation...")
-            (
-                total_directories,
-                total_files,
-                directories_renamed,
-                files_renamed,
-                names_replaced_list,
-            ) = copy_and_replace(
-                src_dir, dst_dir, src_names, dst_names, self.gui_logger
-            )
-
-            # Update statistics
-            self.directories_ratio.set(
-                f"Directories: {directories_renamed}/{total_directories}"
-            )
-            self.files_ratio.set(f"Files: {files_renamed}/{total_files}")
-            self.names_replaced.set(
-                f"Names: {', '.join(map(str, names_replaced_list))}"
-            )
-
-            self.gui_logger(
-                f"Operation completed successfully. New project location: {dst_dir}",
-                level="success",
-            )
-            messagebox.showinfo("Success", "Project cloned successfully.")
+            self.execute_clone_operation(src_dir, dst_dir, src_names, dst_names)
 
         except Exception as e:
             self.gui_logger(f"Error: {e}", level="error")
             messagebox.showerror("Error", str(e))
+
+    def log_replacement_plan(self, src_names: List[str], dst_names: List[str]) -> None:
+        """Log the replacement plan."""
+        self.gui_logger("Replacement plan:", level="info")
+        for i, (src_name, dst_name) in enumerate(zip(src_names, dst_names), 1):
+            self.gui_logger(f"  {i}. '{src_name}' → '{dst_name}'", level="info")
+
+        if len(src_names) > 1:
+            self.gui_logger(
+                "Note: Replacements are processed in order. Be careful with overlapping patterns.",
+                level="info",
+            )
+
+    def confirm_overwrite(self, dst_dir: str) -> bool:
+        """Confirm overwrite of existing destination directory."""
+        return messagebox.askyesno(
+            "Destination exists",
+            f"Destination '{dst_dir}' already exists. Overwrite?",
+        )
+
+    def execute_clone_operation(
+        self,
+        src_dir: str,
+        dst_dir: str,
+        src_names: List[str],
+        dst_names: List[str],
+    ) -> None:
+        """Execute the actual clone operation."""
+        self.gui_logger("Starting clone operation...")
+        (
+            total_directories,
+            total_files,
+            directories_renamed,
+            files_renamed,
+            names_replaced_list,
+        ) = copy_and_replace(src_dir, dst_dir, src_names, dst_names, self.gui_logger)
+
+        # Update statistics
+        self.directories_ratio.set(
+            f"Directories: {directories_renamed}/{total_directories}"
+        )
+        self.files_ratio.set(f"Files: {files_renamed}/{total_files}")
+        self.names_replaced.set(f"Names: {', '.join(map(str, names_replaced_list))}")
+
+        self.gui_logger(
+            f"Operation completed successfully. New project location: {dst_dir}",
+            level="success",
+        )
+        messagebox.showinfo("Success", "Project cloned successfully.")
 
     def _save_and_exit(self) -> None:
         """Save window geometry and exit."""
