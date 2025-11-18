@@ -164,7 +164,7 @@ def copy_and_replace(
     total_files = 0
     directories_renamed = 0
     files_renamed = 0  # Initialized files_renamed
-    words_replaced_counts = [0] * len(src_names)
+    names_replaced_list = [0] * len(src_names)
 
     # Log replacement mapping for clarity
     logger("Replacement mapping:")
@@ -238,20 +238,20 @@ def copy_and_replace(
             dst_file_path = os.path.join(current_dst_base_path, new_file_name)
 
             shutil.copy2(src_file_path, dst_file_path)
+            total_files += 1  # Increment total_files for each file copied
+
+            # Replace content in the new file
+            file_replacements = replace_in_contents(
+                dst_file_path, src_names, dst_names, logger
+            )
+            for i, count in enumerate(file_replacements):
+                names_replaced_list[i] += count
     return (
         total_directories,
         total_files,
         directories_renamed,
         files_renamed,
-        words_replaced_counts,
-    )
-
-    return (
-        directories_created,
-        files_copied,
-        directories_renamed,
-        files_name_changed,
-        words_replaced_counts,
+        names_replaced_list,
     )
 
 
