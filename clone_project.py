@@ -99,6 +99,7 @@ def show_help():
 def replace_in_contents(file_path, src_names, dst_names, logger):
     """Replace text content in a file, skipping binary/unreadable files."""
     total_replacements = 0
+    replacement_counts_per_name = [0] * len(src_names)
     try:
         with open(file_path, "rb") as f:  # Open in binary mode
             content_bytes = f.read()
@@ -106,22 +107,23 @@ def replace_in_contents(file_path, src_names, dst_names, logger):
         # Heuristic: if null byte is present, assume binary
         if b"\x00" in content_bytes:
             logger(f"Skipped file (likely binary): {file_path}", level="skipped")
-            return 0
+            return replacement_counts_per_name
 
         try:
             content = content_bytes.decode("utf-8")
         except UnicodeDecodeError:
             logger(f"Skipped file (not UTF-8 decodable): {file_path}", level="skipped")
-            return 0
+            return replacement_counts_per_name
 
         updated_content = content
         replacements_made = []
 
-        for src_name, dst_name in zip(src_names, dst_names):
+        for i, (src_name, dst_name) in enumerate(zip(src_names, dst_names)):
             replacements = updated_content.count(src_name)
             if replacements > 0:
                 updated_content = updated_content.replace(src_name, dst_name)
                 total_replacements += replacements
+                replacement_counts_per_name[i] += replacements
                 replacements_made.append(f"'{src_name}'→'{dst_name}':{replacements}")
 
         if total_replacements > 0:
@@ -133,17 +135,17 @@ def replace_in_contents(file_path, src_names, dst_names, logger):
             )
             if len(replacements_made) > 1:
                 logger(f"  Breakdown: {', '.join(replacements_made)}")
-        return total_replacements
+        return replacement_counts_per_name
     except IOError:
         logger(f"Skipped file (IO Error): {file_path}", level="skipped")
-        return 0
+        return replacement_counts_per_name
 
 
 def copy_and_replace(src_dir, dst_dir, src_names, dst_names, logger):
     """Copy directory structure while replacing names in contents and filenames."""
     folders_created = 0
     files_copied = 0
-    words_replaced = 0
+    words_replaced_counts = [0] * len(src_names)
 
     # Log replacement mapping for clarity
     logger("Replacement mapping:")
@@ -178,11 +180,14 @@ def copy_and_replace(src_dir, dst_dir, src_names, dst_names, logger):
 
             shutil.copy2(src_file_path, dst_file_path)
             files_copied += 1
-            words_replaced += replace_in_contents(
+            
+            file_replacement_counts = replace_in_contents(
                 dst_file_path, src_names, dst_names, logger
             )
+            for i in range(len(src_names)):
+                words_replaced_counts[i] += file_replacement_counts[i]
 
-    return folders_created, files_copied, words_replaced
+    return folders_created, files_copied, words_replaced_counts
 
 
 # ==============================================================================
@@ -434,14 +439,14 @@ class CloneProjectGUI:
 
             # Perform clone operation
             self.gui_logger("Starting clone operation...")
-            directories, files, names = copy_and_replace(
+            directories, files, names_replaced_list = copy_and_replace(
                 src_dir, dst_dir, src_names, dst_names, self.gui_logger
             )
 
             # Update statistics
             self.directories_created.set(f"Directories: {directories}")
             self.files_changed.set(f"Files: {files}")
-            self.names_replaced.set(f"Names: {names}")
+            self.names_replaced.set(f"Names: {', '.join(map(str, names_replaced_list))}")
 
             self.gui_logger(
                 f"Operation completed successfully. New project location: {dst_dir}",
@@ -510,12 +515,12 @@ def run_cli():
 
     # Perform clone operation
     cli_logger("Starting clone operation...")
-    directories, files, names = copy_and_replace(
+    directories, files, names_replaced_list = copy_and_replace(
         src_dir, dst_dir, src_names, dst_names, cli_logger
     )
     cli_logger(f"Directories created: {directories}")
     cli_logger(f"Files copied: {files}")
-    cli_logger(f"Names replaced: {names}")
+    cli_logger(f"Names replaced: {', '.join(map(str, names_replaced_list))}")
     cli_logger(f"Operation completed successfully. New project location: {dst_dir}")
 
 

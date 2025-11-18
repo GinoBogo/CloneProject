@@ -37,7 +37,7 @@ def test_replace_in_contents(tmp_path, mock_logger):
     file_path.write_text("This is an old_name project.")
     replacements = replace_in_contents(file_path, ["old_name"], ["new_name"], mock_logger)
     assert file_path.read_text() == "This is an new_name project."
-    assert replacements == 1
+    assert replacements == [1]
     mock_logger.assert_called_with(
         f"Updated contents of: {file_path} (1 replacements)"
     )
@@ -61,7 +61,7 @@ def test_replace_in_contents_duplicate_src_names(tmp_path, mock_logger):
     # The total replacements should be 1, as 'gino' is only found and replaced once.
     replacements = replace_in_contents(file_path, ["gino", "gino"], ["bogo", "bogo"], mock_logger)
     assert file_path.read_text() == "This is a test with bogo."
-    assert replacements == 1
+    assert replacements == [1, 0]
     mock_logger.assert_called_with(
         f"Updated contents of: {file_path} (1 replacements)"
     )
@@ -80,7 +80,7 @@ def test_replace_in_contents_duplicate_dst_names(tmp_path, mock_logger):
     
     replacements = replace_in_contents(file_path, ["gino", "bogo"], ["test", "test"], mock_logger)
     assert file_path.read_text() == "This is a test with test and test."
-    assert replacements == 2
+    assert replacements == [1, 1]
     mock_logger.assert_any_call(
         f"Updated contents of: {file_path} (2 replacements)"
     )
@@ -102,11 +102,11 @@ def test_replace_in_contents_binary_file(tmp_path, mock_logger):
     binary_file_path = tmp_path / "binary.bin"
     binary_file_path.write_bytes(b"\x00\x01\x02\x03")
     replacements = replace_in_contents(
-        binary_file_path, "old_name", "new_name", mock_logger
+        binary_file_path, ["old_name"], ["new_name"], mock_logger
     )
     # Content should remain unchanged
     assert binary_file_path.read_bytes() == b"\x00\x01\x02\x03"
-    assert replacements == 0
+    assert replacements == [0]
     mock_logger.assert_called_with(f"Skipped file (likely binary): {binary_file_path}", level="skipped")
 
 
@@ -148,7 +148,7 @@ def test_copy_and_replace(tmp_path, mock_logger):
     )
     assert folders > 0
     assert files == 2
-    assert words == 2
+    assert words == [2]
     mock_logger.assert_any_call(
         f"Updated contents of: {(dst_dir / 'file1.txt').resolve()} (1 replacements)"
     )
@@ -312,7 +312,7 @@ def test_run_cli_success(
     mock_rmtree, mock_exists, mock_validate_inputs, mock_copy_and_replace, capsys
 ):
     mock_exists.return_value = False  # Destination does not exist
-    mock_copy_and_replace.return_value = (1, 1, 1)
+    mock_copy_and_replace.return_value = (1, 1, [1])
     run_cli()
     mock_validate_inputs.assert_called_once_with("/src", "/dst", ["old"], ["new"], cli_logger)
     mock_copy_and_replace.assert_called_once_with(
@@ -392,7 +392,7 @@ def test_run_cli_dst_exists_overwrite(
     mock_rmtree, mock_exists, mock_validate_inputs, mock_copy_and_replace, capsys
 ):
     mock_exists.return_value = True  # Destination exists
-    mock_copy_and_replace.return_value = (1, 1, 1) # Add return value for copy_and_replace
+    mock_copy_and_replace.return_value = (1, 1, [1]) # Add return value for copy_and_replace
     run_cli()
     mock_rmtree.assert_called_once_with("/dst")
     mock_validate_inputs.assert_called_once_with("/src", "/dst", ["old"], ["new"], cli_logger) # Update mock call
