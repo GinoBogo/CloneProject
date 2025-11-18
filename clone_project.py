@@ -561,7 +561,7 @@ class CloneProjectGUI:
 
 def run_cli() -> None:
     """Execute the clone operation in CLI mode."""
-    if len(sys.argv) != 5:
+    if len(sys.argv) < 5:
         cli_log("Error: Invalid number of arguments")
         show_help()
         sys.exit(1)
