@@ -161,116 +161,28 @@ def replace_in_contents(
     return process_file_content(file_path, src_names, dst_names, log_func)
 
 
-def setup_dirs(
+def get_dst_root_path(
     src_dir: str,
     dst_dir: str,
     src_names: List[str],
     dst_names: List[str],
-    log_func: Callable[[str, str], None],
-) -> tuple[str, int, int]:
-    """Process directory structure creation and counting."""
+) -> tuple[str, int]:
+    """Calculate destination root path and determine if it was renamed."""
     src_base = os.path.basename(src_dir)
     dst_base = src_base
 
     for src, dst in zip(src_names, dst_names):
         dst_base = re.sub(re.escape(src), dst, dst_base)
 
-    dst_root = os.path.join(dst_dir, dst_base)
-    os.makedirs(dst_root, exist_ok=True)
+    # Check if the destination directory already includes the target project name
+    if os.path.basename(os.path.normpath(dst_dir)) == dst_base:
+        dst_root = dst_dir
+    else:
+        dst_root = os.path.join(dst_dir, dst_base)
 
-    total_dirs = 1
-    dirs_renamed = 1 if dst_base != src_base else 0
+    was_renamed = 1 if dst_base != src_base else 0
 
-    return dst_root, total_dirs, dirs_renamed
-
-
-def process_tree(
-    src_dir: str,
-    dst_root: str,
-    src_names: List[str],
-    dst_names: List[str],
-    log_func: Callable[[str, str], None],
-    total_dirs: int,
-    dirs_renamed: int,
-) -> tuple[int, int, int, int, List[int]]:
-    """Process all directories and files during copy operation."""
-    total_files = 0
-    files_renamed = 0
-    name_counts = [0] * len(src_names)
-
-    for root, dirs, files in os.walk(src_dir, topdown=True):
-        rel_path = os.path.relpath(root, src_dir)
-
-        if rel_path == ".":
-            curr_dst = dst_root
-        else:
-            proc_rel = rel_path
-            for src, dst in zip(src_names, dst_names):
-                proc_rel = re.sub(re.escape(src), dst, proc_rel)
-
-            curr_dst = os.path.join(dst_root, proc_rel)
-
-            if not os.path.exists(curr_dst):
-                os.makedirs(curr_dst, exist_ok=True)
-                total_dirs += 1
-
-        # Count directory renames
-        for d in dirs:
-            orig_name = d
-            new_name = orig_name
-            for src, dst in zip(src_names, dst_names):
-                new_name = re.sub(re.escape(src), dst, new_name)
-            if new_name != orig_name:
-                dirs_renamed += 1
-
-        # Process files
-        for file in files:
-            total_files, files_renamed, name_counts = process_file(
-                root,
-                file,
-                curr_dst,
-                src_names,
-                dst_names,
-                log_func,
-                total_files,
-                files_renamed,
-                name_counts,
-            )
-
-    return total_dirs, total_files, dirs_renamed, files_renamed, name_counts
-
-
-def process_file(
-    root: str,
-    file: str,
-    curr_dst: str,
-    src_names: List[str],
-    dst_names: List[str],
-    log_func: Callable[[str, str], None],
-    total_files: int,
-    files_renamed: int,
-    name_counts: List[int],
-) -> tuple[int, int, List[int]]:
-    """Process a single file during copy operation."""
-    src_path = os.path.join(root, file)
-    new_name = file
-
-    for src, dst in zip(src_names, dst_names):
-        new_name = re.sub(re.escape(src), dst, new_name)
-
-    if new_name != file:
-        files_renamed += 1
-
-    dst_path = os.path.join(curr_dst, new_name)
-    shutil.copy2(src_path, dst_path)
-    total_files += 1
-
-    file_repl = replace_in_contents(dst_path, src_names, dst_names, log_func)
-
-    for i, count in enumerate(file_repl):
-        name_counts[i] += count
-
-    return total_files, files_renamed, name_counts
+    return dst_root, was_renamed
 
 
 def copy_and_replace(
@@ -285,21 +197,73 @@ def copy_and_replace(
     for i, (src, dst) in enumerate(zip(src_names, dst_names), 1):
         log_func(f"  {i}. '{src}' → '{dst}'")
 
-    dst_root, total_dirs, dirs_renamed = setup_dirs(
-        src_dir, dst_dir, src_names, dst_names, log_func
-    )
+    dst_root, root_renamed = get_dst_root_path(src_dir, dst_dir, src_names, dst_names)
 
-    total_dirs, total_files, dirs_renamed, files_renamed, name_counts = process_tree(
-        src_dir, dst_root, src_names, dst_names, log_func, total_dirs, dirs_renamed
-    )
+    # Create ONLY the destination root directory
+    os.makedirs(dst_root, exist_ok=True)
 
-    return (
-        total_dirs,
-        total_files,
-        dirs_renamed,
-        files_renamed,
-        name_counts,
-    )
+    total_dirs = 1  # Start with root directory
+    total_files = 0
+    dirs_renamed = root_renamed  # Start with root rename status
+    files_renamed = 0
+    name_counts = [0] * len(src_names)
+
+    # Walk through source directory and copy everything
+    for root, dirs, files in os.walk(src_dir):
+        # Calculate relative path from source root
+        rel_path = os.path.relpath(root, src_dir)
+
+        # Determine destination path for this directory
+        if rel_path == ".":
+            # This is the root directory, use dst_root
+            curr_dst_dir = dst_root
+        else:
+            # Apply name replacements to the relative path
+            processed_rel_path = rel_path
+            for src, dst in zip(src_names, dst_names):
+                processed_rel_path = re.sub(re.escape(src), dst, processed_rel_path)
+
+            curr_dst_dir = os.path.join(dst_root, processed_rel_path)
+
+            # Create subdirectory if it doesn't exist
+            if not os.path.exists(curr_dst_dir):
+                os.makedirs(curr_dst_dir, exist_ok=True)
+                total_dirs += 1
+
+        # Process directories for rename counting
+        for dir_name in dirs:
+            orig_name = dir_name
+            new_name = orig_name
+            for src, dst in zip(src_names, dst_names):
+                new_name = re.sub(re.escape(src), dst, new_name)
+            if new_name != orig_name:
+                dirs_renamed += 1
+
+        # Process files
+        for file_name in files:
+            src_file = os.path.join(root, file_name)
+
+            # Apply name replacements to filename
+            new_file_name = file_name
+            for src, dst in zip(src_names, dst_names):
+                new_file_name = re.sub(re.escape(src), dst, new_file_name)
+
+            dst_file = os.path.join(curr_dst_dir, new_file_name)
+
+            # Copy file
+            shutil.copy2(src_file, dst_file)
+            total_files += 1
+
+            # Count filename rename
+            if new_file_name != file_name:
+                files_renamed += 1
+
+            # Process file contents
+            file_repl = replace_in_contents(dst_file, src_names, dst_names, log_func)
+            for i, count in enumerate(file_repl):
+                name_counts[i] += count
+
+    return total_dirs, total_files, dirs_renamed, files_renamed, name_counts
 
 
 # ==============================================================================
@@ -517,10 +481,11 @@ class CloneProjectGUI:
             self.log_plan(src_names, dst_names)
 
             # Handle existing destination
-            if os.path.exists(dst):
-                if not self.confirm_overwrite(dst):
+            dst_root, _ = get_dst_root_path(src, dst, src_names, dst_names)
+            if os.path.exists(dst_root):
+                if not self.confirm_overwrite(dst_root):
                     return
-                shutil.rmtree(dst)
+                shutil.rmtree(dst_root)
 
             # Perform clone operation
             self.do_clone(src, dst, src_names, dst_names)
@@ -623,11 +588,12 @@ def run_cli() -> None:
         )
 
     # Handle existing destination
-    if os.path.exists(dst_dir):
+    dst_root, _ = get_dst_root_path(src_dir, dst_dir, src_names, dst_names)
+    if os.path.exists(dst_root):
         cli_log(
-            f"Warning: Destination directory '{dst_dir}' already exists. Overwriting..."
+            f"Warning: Destination directory '{dst_root}' already exists. Overwriting..."
         )
-        shutil.rmtree(dst_dir)
+        shutil.rmtree(dst_root)
 
     # Perform clone operation
     cli_log("Starting clone operation...")
@@ -642,7 +608,7 @@ def run_cli() -> None:
     cli_log(f"Total Directories: {total_dirs} (renamed: {dirs_renamed})")
     cli_log(f"Total Files: {total_files} (renamed: {files_renamed})")
     cli_log(f"Names replaced: {', '.join(map(str, name_counts))}")
-    cli_log(f"Operation completed successfully. New project location: {dst_dir}")
+    cli_log(f"Operation completed successfully. New project location: {dst_root}")
 
 
 def run_gui() -> None:
