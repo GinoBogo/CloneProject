@@ -287,6 +287,8 @@ class CloneProjectGUI:
     src_name_entry: ttk.Entry
     dst_name_entry: ttk.Entry
 
+    CONFIG_FILE: str = "clone_project.cfg"
+
     def __init__(self) -> None:
         self.root = tk.Tk()
         self.root.title("Clone Project")
