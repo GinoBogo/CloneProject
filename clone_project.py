@@ -25,7 +25,6 @@ LABEL_WIDTH = 20
 ENTRY_WIDTH = 50
 BUTTON_WIDTH = 10
 
-
 # ==============================================================================
 # VALIDATION & HELPER FUNCTIONS
 # ==============================================================================
@@ -597,11 +596,15 @@ def run_cli() -> None:
         files_renamed,
         names_replaced_list,
     ) = copy_and_replace(src_dir, dst_dir, src_names, dst_names, cli_logger)
+
     cli_logger(
         f"Total Directories: {total_directories} (renamed: {directories_renamed})"
     )
-    cli_logger(f"Files copied: {total_files} (names changed: {files_renamed})")
+
+    cli_logger(f"Total Files: {total_files} (renamed: {files_renamed})")
+
     cli_logger(f"Names replaced: {', '.join(map(str, names_replaced_list))}")
+
     cli_logger(f"Operation completed successfully. New project location: {dst_dir}")
 
 

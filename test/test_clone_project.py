@@ -325,7 +325,7 @@ def test_run_cli_success(
     captured = capsys.readouterr()
     assert "Replacement plan:" in captured.out
     assert "Total Directories: 1" in captured.out
-    assert "Files copied: 1" in captured.out
+    assert "Total Files: 1" in captured.out
     assert "Names replaced: 1" in captured.out
     assert "Operation completed successfully." in captured.out
 
@@ -410,7 +410,7 @@ def test_run_cli_dst_exists_overwrite(
     )
     assert "Starting clone operation..." in captured.out
     assert "Total Directories: 1" in captured.out
-    assert "Files copied: 1" in captured.out
+    assert "Total Files: 1" in captured.out
     assert "Names replaced: 1" in captured.out
     assert "Operation completed successfully." in captured.out
 
