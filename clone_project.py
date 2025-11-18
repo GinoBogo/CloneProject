@@ -216,7 +216,7 @@ class CloneProjectGUI:
             geometry = self.config.get("window", "geometry", fallback=None)
             if geometry:
                 self.root.geometry(geometry)
-        
+
         self.root.minsize(*MIN_WINDOW_SIZE)
 
         # Configure ttk style
@@ -243,7 +243,6 @@ class CloneProjectGUI:
 
         self.setup_ui()
         self.root.protocol("WM_DELETE_WINDOW", self._save_and_exit)
-
 
     def setup_ui(self):
         """Initialize all GUI components."""
