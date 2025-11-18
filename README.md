@@ -27,6 +27,8 @@ python clone_project.py
 
 ![GUI Screenshot](docs/images/figure_01.png)
 
+![GUI Screenshot](docs/images/figure_02.png)
+
 The GUI will allow you to:
 *   Browse and select the **Source Directory** (the project you want to clone).
 *   Browse and select the **Destination Directory** (where the new, cloned project will be created).

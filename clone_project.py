@@ -363,8 +363,8 @@ class CloneProjectGUI:
         self.style.configure(
             "Horizontal.TProgressbar",
             thickness=20,
-            troughcolor="#D4EDDA",  # Light green for the trough
-            background="#28A745",  # Darker green for the progress bar
+            troughcolor="#D4EDDA",
+            background="#28A745",
         )
         self.style.map(
             "Browse.TButton",
@@ -574,6 +574,8 @@ class CloneProjectGUI:
 
             # Reset progress before starting
             self.reset_progress()
+
+            # Reset counters before starting
             self.dir_var.set("Directories: 0")
             self.file_var.set("Files: 0")
             self.name_var.set("Names: 0")
