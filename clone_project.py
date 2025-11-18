@@ -158,11 +158,12 @@ def copy_and_replace(
     src_names: List[str],
     dst_names: List[str],
     logger: Callable[[str, str], None],
-) -> tuple[int, int, int, List[int]]:
+) -> tuple[int, int, int, int, List[int]]:
     """Copy directory structure while replacing names in contents and filenames."""
-    folders_created = 0
-    files_copied = 0
-    folders_renamed = 0
+    total_directories = 0
+    total_files = 0
+    directories_renamed = 0
+    files_renamed = 0  # Initialized files_renamed
     words_replaced_counts = [0] * len(src_names)
 
     # Log replacement mapping for clarity
@@ -183,10 +184,10 @@ def copy_and_replace(
 
     # Create the actual destination root directory
     os.makedirs(actual_dst_root, exist_ok=True)
-    folders_created += 1  # Count the creation of the top-level destination directory
+    total_directories += 1  # Count the creation of the top-level destination directory
 
     if processed_dst_root_name != src_dir_basename:
-        folders_renamed += 1  # Count the rename of the top-level directory
+        directories_renamed += 1  # Count the rename of the top-level directory
 
     for root, dirs, files in os.walk(src_dir, topdown=True):
         # Calculate the relative path from the source root
@@ -211,7 +212,7 @@ def copy_and_replace(
 
             if not os.path.exists(current_dst_base_path):
                 os.makedirs(current_dst_base_path, exist_ok=True)
-                folders_created += 1
+                total_directories += 1
 
         # Iterate through subdirectories (dirs) to count renames
         for d in dirs:
@@ -222,7 +223,7 @@ def copy_and_replace(
                     re.escape(src_name), dst_name, processed_dir_name
                 )
             if processed_dir_name != original_dir_name:
-                folders_renamed += 1
+                directories_renamed += 1
 
         # Replace file names and copy files
         for file in files:
@@ -231,20 +232,27 @@ def copy_and_replace(
             for src_name, dst_name in zip(src_names, dst_names):
                 new_file_name = re.sub(re.escape(src_name), dst_name, new_file_name)
 
+            if new_file_name != file:  # Check if file name was changed
+                files_renamed += 1
+
             dst_file_path = os.path.join(current_dst_base_path, new_file_name)
 
             shutil.copy2(src_file_path, dst_file_path)
-            files_copied += 1
+    return (
+        total_directories,
+        total_files,
+        directories_renamed,
+        files_renamed,
+        words_replaced_counts,
+    )
 
-            file_replacement_counts = replace_in_contents(
-                dst_file_path, src_names, dst_names, logger
-            )
-            for i in range(len(src_names)):
-                words_replaced_counts[i] += file_replacement_counts[i]
-
-    return folders_created, files_copied, folders_renamed, words_replaced_counts
-
-    return folders_created, files_copied, folders_renamed, words_replaced_counts
+    return (
+        directories_created,
+        files_copied,
+        directories_renamed,
+        files_name_changed,
+        words_replaced_counts,
+    )
 
 
 # ==============================================================================
@@ -496,13 +504,21 @@ class CloneProjectGUI:
 
             # Perform clone operation
             self.gui_logger("Starting clone operation...")
-            directories, files, folders_renamed, names_replaced_list = copy_and_replace(
+            (
+                total_directories,
+                total_files,
+                directories_renamed,
+                files_renamed,
+                names_replaced_list,
+            ) = copy_and_replace(
                 src_dir, dst_dir, src_names, dst_names, self.gui_logger
             )
 
             # Update statistics
-            self.directories_ratio.set(f"Directories: {folders_renamed}/{directories}")
-            self.files_ratio.set(f"Files: {files}")
+            self.directories_ratio.set(
+                f"Directories: {directories_renamed}/{total_directories}"
+            )
+            self.files_ratio.set(f"Files: {files_renamed}/{total_files}")
             self.names_replaced.set(
                 f"Names: {', '.join(map(str, names_replaced_list))}"
             )
@@ -574,11 +590,17 @@ def run_cli() -> None:
 
     # Perform clone operation
     cli_logger("Starting clone operation...")
-    directories, files, folders_renamed, names_replaced_list = copy_and_replace(
-        src_dir, dst_dir, src_names, dst_names, cli_logger
+    (
+        total_directories,
+        total_files,
+        directories_renamed,
+        files_renamed,
+        names_replaced_list,
+    ) = copy_and_replace(src_dir, dst_dir, src_names, dst_names, cli_logger)
+    cli_logger(
+        f"Directories created: {total_directories} (renamed: {directories_renamed})"
     )
-    cli_logger(f"Directories created: {directories} (renamed: {folders_renamed})")
-    cli_logger(f"Files copied: {files}")
+    cli_logger(f"Files copied: {total_files} (names changed: {files_renamed})")
     cli_logger(f"Names replaced: {', '.join(map(str, names_replaced_list))}")
     cli_logger(f"Operation completed successfully. New project location: {dst_dir}")
 
