@@ -19,7 +19,7 @@ from tkinter import filedialog, messagebox, ttk
 # CONSTANTS
 # ==============================================================================
 
-DEFAULT_WINDOW_SIZE = (600, 600)  # Used as minimum window size
+MIN_WINDOW_SIZE = (600, 600)  # Used as minimum window size
 LABEL_WIDTH = 20
 ENTRY_WIDTH = 50
 BUTTON_WIDTH = 10
@@ -205,7 +205,7 @@ class CloneProjectGUI:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("Clone Project")
-        self.root.minsize(*DEFAULT_WINDOW_SIZE)
+        self.root.minsize(*MIN_WINDOW_SIZE)
 
         # Configure ttk style
         self.style = ttk.Style()
