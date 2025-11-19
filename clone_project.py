@@ -575,7 +575,7 @@ class CloneProjectGUI:
             # Reset progress before starting
             self.reset_progress()
 
-            # Reset counters before starting
+            # Reset statistics before starting
             self.dir_var.set("Directories: 0")
             self.file_var.set("Files: 0")
             self.name_var.set("Names: 0")
