@@ -674,6 +674,20 @@ def cli_progress_callback(item_type: str, current: int, total: int) -> None:
         sys.stdout.flush()
 
 
+def confirm_cli_overwrite(dst_root: str) -> bool:
+    """Confirm overwrite of an existing destination directory for CLI usage."""
+    prompt = f"Destination '{dst_root}' already exists. Overwrite? [y/N]: "
+    try:
+        response = input(prompt).strip().lower()
+    except EOFError:
+        return False
+
+    if not response:
+        return False
+
+    return response in {"y", "yes"}
+
+
 def run_cli() -> None:
     """Execute the clone operation in CLI mode."""
     if len(sys.argv) < 5:
@@ -705,9 +719,10 @@ def run_cli() -> None:
     # Handle existing destination
     dst_root, _ = get_dst_root_path(src_dir, dst_dir, src_names, dst_names)
     if os.path.exists(dst_root):
-        cli_log(
-            f"Warning: Destination directory '{dst_root}' already exists. Overwriting..."
-        )
+        cli_log(f"Warning: Destination directory '{dst_root}' already exists.")
+        if not confirm_cli_overwrite(dst_root):
+            cli_log("Operation cancelled. Destination was not overwritten.")
+            return
         shutil.rmtree(dst_root)
 
     # Perform clone operation

@@ -7,6 +7,7 @@
 
 import sys
 import os
+import io
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -645,8 +646,10 @@ def test_show_help(mock_exit, capsys):
 @patch("shutil.rmtree")
 @patch("sys.argv", ["clone_project.py", "/src", "/dst", "old", "new"])
 def test_run_cli_success(
-    mock_rmtree, mock_exists, mock_validate_inputs, mock_copy_and_replace, capsys
+    mock_rmtree, mock_exists, mock_validate_inputs, mock_copy_and_replace, capsys, monkeypatch
 ):
+    monkeypatch.setattr("builtins.input", lambda _: "y")
+    monkeypatch.setattr("sys.stdin", io.StringIO("y\n"))
     mock_copy_and_replace.return_value = (1, 1, 1, 1, [1])
     run_cli()
     mock_validate_inputs.assert_called_once_with(
@@ -784,8 +787,10 @@ def test_run_cli_validation_error(mock_validate_inputs, capsys):
     ["clone_project.py", "/src/old_proj", "/dst_parent", "old_proj", "new_proj"],
 )
 def test_run_cli_dst_exists_overwrite(
-    mock_rmtree, mock_exists, mock_validate_inputs, mock_copy_and_replace, capsys
+    mock_rmtree, mock_exists, mock_validate_inputs, mock_copy_and_replace, capsys, monkeypatch
 ):
+    monkeypatch.setattr("builtins.input", lambda _: "y")
+    monkeypatch.setattr("sys.stdin", io.StringIO("y\n"))
     # The calculated dst_root will be /dst_parent/new_proj
     expected_dst_root = "/dst_parent/new_proj"
 
@@ -813,7 +818,7 @@ def test_run_cli_dst_exists_overwrite(
     assert "Replacement plan:" in captured.out
     assert "  1. 'old_proj' → 'new_proj'" in captured.out
     assert (
-        f"Warning: Destination directory '{expected_dst_root}' already exists. Overwriting..."
+        f"Warning: Destination directory '{expected_dst_root}' already exists."
         in captured.out
     )
     assert "Starting clone operation..." in captured.out
